@@ -58,49 +58,29 @@ solar_df['DAILY_SOLAR_EXPOSURE'] = solar_df['DAILY_SOLAR_EXPOSURE'].interpolate(
 solar_df.to_csv('processed_data\daily_solar_exposure_bankstown.csv')
 
 
-## PV INSTALLATION COUNT - NSW & ACT ##
-pv_count_df = pd.read_csv('original_data\monthly_pv_installations_nsw_act_data.csv')
+## PV INSTALLATION COUNT - NSW  ##
+pv_count_df = pd.read_csv('original_data\monthly_pv_installations_nsw_data.csv')
 print(pv_count_df.head())
 pv_count_df = pv_count_df.rename(columns={'Installations': 'PV_INSTALLATIONS'})
 pv_count_df = format_date(pv_count_df)
 
 print(pv_count_df.isna().any())
 
-# get NSW data from combined data
-pv_count_nsw_act = pv_count_df[pv_count_df['Postcode'] == '2XXX']
-pv_count_nsw_act = pv_count_nsw_act.drop(columns='Postcode')
-
-pv_count_act = pv_count_df[pv_count_df['Postcode'] != '2XXX']
-pv_count_act = pv_count_act.groupby('DATE')['PV_INSTALLATIONS'].sum()
-
-pv_count_nsw = pd.merge(pv_count_nsw_act, pv_count_act, on='DATE')
-pv_count_nsw['PV_INSTALLATIONS'] = pv_count_nsw['PV_INSTALLATIONS_x'] - pv_count_nsw['PV_INSTALLATIONS_y']
-pv_count_nsw = pv_count_nsw.drop(columns=['PV_INSTALLATIONS_x', 'PV_INSTALLATIONS_y'])
 
 # NOTE: this cumulative measurement may be unreliable depending on PV uninstallation rates
-pv_count_nsw['CUMULATIVE_PV_INSTALLATIONS'] = pv_count_nsw['PV_INSTALLATIONS'].cumsum()
-pv_count_nsw.to_csv('processed_data\monthly_pv_installations_nsw.csv')
+pv_count_df['CUMULATIVE_PV_INSTALLATIONS'] = pv_count_df['PV_INSTALLATIONS'].cumsum()
+pv_count_df.to_csv('processed_data\monthly_pv_installations_nsw.csv')
 
 
-## PV INSTALLATION CAPACITY - NSW & ACT ##
-pv_capacity_df = pd.read_csv('original_data\monthly_pv_installation_capacity_nsw_act_data.csv')
+## PV INSTALLATION CAPACITY - NSW ##
+pv_capacity_df = pd.read_csv('original_data\monthly_pv_installation_capacity_nsw_data.csv')
 print(pv_capacity_df.head())
 pv_capacity_df = pv_capacity_df.rename(columns={'Capacity (kW)': 'PV_CAPACITY'})
 pv_capacity_df = format_date(pv_capacity_df)
 
 print(pv_capacity_df.isna().any())
 
-pv_capacity_nsw_act = pv_capacity_df[pv_capacity_df['Postcode'] == '2XXX']
-pv_capacity_nsw_act = pv_capacity_nsw_act.drop(columns='Postcode')
-
-pv_capacity_act = pv_capacity_df[pv_capacity_df['Postcode'] != '2XXX']
-pv_capacity_act = pv_capacity_act.groupby('DATE')['PV_CAPACITY'].sum()
-
-pv_capacity_nsw = pd.merge(pv_capacity_nsw_act, pv_capacity_act, on='DATE')
-pv_capacity_nsw['PV_CAPACITY'] = pv_capacity_nsw['PV_CAPACITY_x'] - pv_capacity_nsw['PV_CAPACITY_y']
-pv_capacity_nsw = pv_capacity_nsw.drop(columns=['PV_CAPACITY_x', 'PV_CAPACITY_y'])
-
 # NOTE: this cumulative measurement may be unreliable depending on PV uninstallation rates
-pv_capacity_nsw['CUMULATIVE_PV_CAPACITY'] = pv_capacity_nsw['PV_CAPACITY'].cumsum()
-pv_capacity_nsw.to_csv('processed_data\monthly_pv_capacity_nsw.csv')
+pv_capacity_df['CUMULATIVE_PV_CAPACITY'] = pv_capacity_df['PV_CAPACITY'].cumsum()
+pv_capacity_df.to_csv('processed_data\monthly_pv_capacity_nsw.csv')
 

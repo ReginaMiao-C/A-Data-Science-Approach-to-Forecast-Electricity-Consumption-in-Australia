@@ -28,9 +28,9 @@ def integrate_group(g):
     t = (g["DATETIME"] - g["DATETIME"].min()).dt.total_seconds()
     return np.trapezoid(g["TOTALDEMAND"], x=t) / (3600*1000)  # GWhr
 
-yearly_energy = dispatched_power[dispatched_power["YEAR"] <dispatched_power["YEAR"].max()].groupby(["YEAR"]).apply(integrate_group)
+yearly_energy = dispatched_power[dispatched_power["YEAR"] < dispatched_power["YEAR"].max()].groupby(["YEAR","MONTH"]).apply(integrate_group)
 
 #plt.plot(dispatched_power.groupby("YEAR")["TOTALDEMAND"].mean(), label="Total Demand")
-plt.plot(yearly_energy, label="Total Demand")
+plt.plot(yearly_energy.values, label="Total Demand")
 
 plt.show()

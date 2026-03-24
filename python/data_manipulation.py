@@ -7,7 +7,7 @@ from statsmodels.tsa.stattools import kpss
 import statsmodels.api as sm
 from statsmodels.graphics.tsaplots import plot_acf
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 
 def fill_missing_values(df,missing_days, how="mean"):
@@ -94,7 +94,7 @@ data = get_data()
 data.hist(bins=20)
 plt.show()
 
-scaler = StandardScaler()
+scaler = MinMaxScaler()
 scaler.fit(data)
 
 scaled_data = pd.DataFrame(scaler.transform(data))
@@ -103,3 +103,7 @@ plt.show()
 
 with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
     print(data.corr())
+
+lograin = pd.DataFrame.from_dict({"log(rain + 1)": np.log(data["rainfall"] + 1)})
+lograin.hist(bins=20)
+plt.show()

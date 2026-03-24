@@ -100,8 +100,8 @@ def fill_missing_values(df,missing_days, how="mean"):
     return df
 
 
-#adf_test(dispatched_power["TOTALDEMAND"])
-#kpss_test(dispatched_power["TOTALDEMAND"])
+adf_test(dispatched_power["TOTALDEMAND"])
+kpss_test(dispatched_power["TOTALDEMAND"])
 # both the tests suggest that the data is stationary well beyond the 1% Confidence Interval
 peak_by_day = dispatched_power.groupby("DATE")["TOTALDEMAND"].max()
 max_temp = temperature_data.groupby("DATE")["TEMPERATURE"].max()
@@ -161,6 +161,6 @@ y = data["Max_Demand"]
 model = sm.OLS(y, X).fit()
 print(model.summary())
 
-plot_acf(data["Max_Demand"], lags=500)
+plot_acf(data["Max_Demand"], lags=31)
 plt.title("Autocorrelation of Peak Demand")
 plt.show()

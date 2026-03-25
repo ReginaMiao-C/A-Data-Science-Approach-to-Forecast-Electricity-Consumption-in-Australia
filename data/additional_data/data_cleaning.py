@@ -80,7 +80,5 @@ pv_capacity_df = format_date(pv_capacity_df)
 
 print(pv_capacity_df.isna().any())
 
-# NOTE: this cumulative measurement may be unreliable depending on PV uninstallation rates
-pv_capacity_df['CUMULATIVE_PV_CAPACITY'] = pv_capacity_df['PV_CAPACITY'].cumsum()
 pv_capacity_df.to_csv('processed_data\monthly_pv_capacity_nsw.csv')
 

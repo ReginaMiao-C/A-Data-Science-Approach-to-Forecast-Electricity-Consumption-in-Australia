@@ -1,4 +1,4 @@
-,rainfall,solar_exposure,min_temperature,max_temperature,peak_power
+date,rainfall,solar_exposure,min_temperature,max_temperature,peak_power
 2010-01-01,0.2,14.6,22.1,28.8,8883.98
 2010-01-02,0.0,18.4,21.6,29.4,9294.07
 2010-01-03,15.2,7.3,17.9,21.5,8247.61

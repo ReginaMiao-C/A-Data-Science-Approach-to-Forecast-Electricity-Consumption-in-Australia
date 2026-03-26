@@ -3,8 +3,13 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import sys
-
+import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+
+
+np.random.seed(0)
+use_all_data = True
+cyclical_encoding = True
 
 cwd = Path.cwd()
 root_folder = cwd.parent
@@ -15,14 +20,31 @@ df = df.rename(columns={'Unnamed: 0': 'date'})
 df['date'] = pd.to_datetime(df['date'])
 # pytorch tensors need numerical inputs
 df['year'] = df['date'].dt.year
-df['month'] = df['date'].dt.month
-df['day'] = df['date'].dt.day
+df['day'] = df['date'].dt.strftime('%j') #day of year
+
+#df['month'] = df['date'].dt.month
+#df['day'] = df['date'].dt.day
 df = df.drop(columns='date')
 df = df.astype('float32')
 
+# cyclical feature encoding
+# https://machinelearningmastery.com/7-pandas-tricks-for-time-series-feature-engineering/
+if cyclical_encoding: # TODO: confirm how to handle leap years
+    df['day_sin'] = np.where(df['year'].isin([2012.0, 2016.0, 2020.0]), np.sin(2 * np.pi * df['day'] / 366), np.sin(2 * np.pi * df['day'] / 365))
+    df['day_cos'] = np.where(df['year'].isin([2012.0, 2016.0, 2020.0]), np.cos(2 * np.pi * df['day'] / 366), np.cos(2 * np.pi * df['day'] / 365))
+    df = df.drop(columns='day')
+
+
 # split into training and testing
-train = df[df['year']== 2010]
-test = df[(df['year'] == 2011) & (df['month'] == 1) & (df['day'] == 1)]
+if use_all_data:
+    test = df.iloc[-1:]
+    train = df.iloc[:-1]
+else:
+    train = df[df['year']== 2010]
+    test = df[(df['year'] == 2011)].head(1)
+
+
+
 y_train = train['peak_power']
 y_test = test['peak_power']
 x_train = train.drop(columns='peak_power')

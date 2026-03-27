@@ -48,11 +48,13 @@ def get_data():
     temperature_data = pd.read_csv(data_folder / "temperature_nsw.csv")
     solar_irradiance = pd.read_csv(data_folder / 'additional_data'  / "processed_data" / "daily_solar_exposure_bankstown.csv")
     rainfall = pd.read_csv(data_folder / 'additional_data'  / "processed_data" / "daily_rainfall_bankstown.csv")
+    pv_installed_capacity = pd.read_csv(data_folder / "additional_data" / "processed_data" / "monthly_pv_installations_nsw.csv")
 
     # set the dates into the datetime format:
     dispatched_power["DATE"] = pd.to_datetime(dispatched_power["DATETIME"], dayfirst=True).dt.date
     temperature_data["DATE"] = pd.to_datetime(temperature_data["DATETIME"], dayfirst=True).dt.date
     solar_irradiance["DATE"] = pd.to_datetime(solar_irradiance["DATE"], format="%Y-%m-%d").dt.date
+    pv_installed_capacity["DATE"] = pd.to_datetime(pv_installed_capacity["DATE"], format="%Y-%m-%d").dt.date
     rainfall["DATE"] = pd.to_datetime(rainfall["DATE"], format="%Y-%m-%d").dt.date
 
     # get the min/max as required from the datasets.
@@ -66,6 +68,7 @@ def get_data():
     min_temperature.index = pd.to_datetime(min_temperature.index)
     solar_irradiance.index = pd.to_datetime(solar_irradiance["DATE"])
     rainfall.index = pd.to_datetime(rainfall["DATE"])
+    pv_installed_capacity.index = pd.to_datetime(pv_installed_capacity["DATE"])
 
     # find and fill any missing dates by using the average across the years:
     missing_dates = peak_power.index.difference(max_temperature.index)
@@ -84,11 +87,26 @@ def get_data():
     #print(missing_dates)
     rainfall = fill_missing_values(rainfall, missing_dates)
 
-    data = pd.concat([rainfall["DAILY_RAINFALL"], solar_irradiance["DAILY_SOLAR_EXPOSURE"], min_temperature, max_temperature, peak_power["TOTALDEMAND"]], axis=1)
-    data.columns = ["rainfall", "solar_exposure", "min_temperature", "max_temperature", "peak_power"]
+    daily_pv = pv_installed_capacity.resample("D").ffill()
+
+    #missing_dates = peak_power.index.difference(pv_installed_capacity.index)
+    # print(missing_dates)
+    #pv_installed_capacity = fill_missing_values(pv_installed_capacity, missing_dates)
+
+
+
+    data = pd.concat([rainfall["DAILY_RAINFALL"], solar_irradiance["DAILY_SOLAR_EXPOSURE"], min_temperature, max_temperature, daily_pv["CUMULATIVE_PV_INSTALLATIONS"], peak_power["TOTALDEMAND"]], axis=1)
+    data.columns = ["rainfall", "solar_exposure", "min_temperature", "max_temperature", "pv_capacity","peak_power"]
+
+    # we don't have the final little bit of PV data so drop the nan rows
+    data.dropna(inplace=True, how="any", axis=0)
     data.index = data.index.date
     return data
 
+
+cwd = Path.cwd()
+root_folder = cwd.parent
+data_folder = root_folder / "data"
 
 data = get_data()
 data.hist(bins=20)
@@ -100,6 +118,9 @@ scaler.fit(data)
 scaled_data = pd.DataFrame(scaler.transform(data))
 scaled_data.hist(bins=20)
 plt.show()
+
+data.index.name = "date"
+data.to_csv(data_folder / "all_data.csv")
 
 with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
     print(data.corr())

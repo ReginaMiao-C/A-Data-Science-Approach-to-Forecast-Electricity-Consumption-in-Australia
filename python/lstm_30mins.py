@@ -10,7 +10,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolu
 
 torch.manual_seed(0)
 year_month_day = False
-cyclical_encoding = False
+cyclical_encoding = True
 drop_orig_dates = False
 
 cwd = Path.cwd()
@@ -21,6 +21,12 @@ df = pd.read_csv(data_folder / 'all_data_30min.csv')
 
 
 df['date'] = pd.to_datetime(df['datetime'])
+
+df_orig = df.copy()
+df_orig['time'] = df['date'].dt.time
+df_orig['date'] = df['date'].dt.date
+df_orig = df_orig.drop(columns=['datetime', 'rainfall', 'pv_capacity', 'temperature', 'solar_power'])
+
 df['year'] = df['date'].dt.year
 df['hour'] = df['date'].dt.hour
 df['min'] = df['date'].dt.minute
@@ -75,14 +81,14 @@ class LSTMmodel(nn.Module):
         return out
 
 # sliding window
-num_days = 365
+num_days = 7
 window_size = num_days*48
 forecast = 1
 y_pred_list = []
 y_test_list = []
 
-for w in range(window_size, window_size+96):
-    print(w)
+for w in range(window_size, window_size+48):
+    print(w-window_size)
     x_train = x.iloc[:w]
     x_test = x.iloc[w:w+1]
     y_train = y.iloc[:w]
@@ -99,7 +105,7 @@ for w in range(window_size, window_size+96):
     y_train_scaled = torch.tensor(y_train_scaled[-1:], dtype=torch.float32)
     x_test_scaled = torch.tensor(x_test_scaled, dtype=torch.float32).unsqueeze(0)
     
-    model = LSTMmodel(input_size=x.shape[1], hidden_size=64, num_layers=2)
+    model = LSTMmodel(input_size=x.shape[1], hidden_size=128, num_layers=2)
     criterion_mse = nn.MSELoss() # penalise large errors more heavily
     criterion_mae = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -134,7 +140,14 @@ print("Test MAE:", mae)
 print("Test MAPE:", mape)
     
 
+test_data = df_orig.iloc[window_size:window_size+48].reset_index()
+test_data['predictions'] = y_pred_list
 
-
-
-
+true_max = test_data['total_demand'].max()
+true_max_time= test_data['time'].iloc[test_data['total_demand'].idxmax()]
+pred_max = test_data['predictions'].max()
+pred_max_time = test_data['time'].iloc[test_data['predictions'].idxmax()]
+print(true_max)
+print(true_max_time)
+print(pred_max)
+print(pred_max_time)

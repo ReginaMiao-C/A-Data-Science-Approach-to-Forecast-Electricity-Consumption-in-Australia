@@ -13,7 +13,21 @@ year_month_day = False
 cyclical_encoding = True
 drop_orig_dates = False
 
-log_norm=True
+
+log_norm=False
+
+num_days = 77
+input_window = num_days*48
+output_window = 48
+val_days = 1
+
+num_tests = 100
+
+epochs = 20
+hidden_size = 128
+num_layers = 1
+learning_rate = 0.001
+
 
 cwd = Path.cwd()
 root_folder = cwd.parent
@@ -88,13 +102,6 @@ class LSTMmodel(nn.Module):
 
 results = pd.DataFrame(columns=['date', 'true_peak', 'true_peak_time', 'pred_peak', 'pred_peak_time', 'Train MSE', 'Train MAE', 'Train MAPE', 'Test MSE', 'Test MAE', 'Test MAPE'])
 
-#set window vars
-num_days = 7
-input_window = num_days*48
-output_window = 48
-val_days = 7
-
-num_tests = 10
 
 
 for repeat in range(num_days, num_days+num_tests):
@@ -111,12 +118,11 @@ for repeat in range(num_days, num_days+num_tests):
     scaler_y.fit(y[:val_start].values.reshape(-1, 1))
     y_scaled = scaler_y.transform(y.values.reshape(-1, 1))
 
-    epochs = 20
 
-    model = LSTMmodel(input_size=x.shape[1], hidden_size=128, num_layers=1)
+    model = LSTMmodel(input_size=x.shape[1], hidden_size=hidden_size, num_layers=num_layers)
     criterion_mse = nn.MSELoss() # penalise large errors more heavily
     criterion_mae = nn.L1Loss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     y_train_pred_list = []
     y_train_list = []
@@ -150,6 +156,7 @@ for repeat in range(num_days, num_days+num_tests):
         y_train = scaler_y.inverse_transform(y_train_scaled.detach().cpu().numpy().T)
         if log_norm:
             y_train = np.exp(y_train)
+            y_train_pred = np.exp(y_train_pred)
         y_train_pred_list.extend(y_train_pred.tolist())
         y_train_list.extend(y_train.tolist())
 
@@ -174,7 +181,7 @@ for repeat in range(num_days, num_days+num_tests):
     true_max = day['total_demand'].max()
     true_max_time= day['time'].iloc[day['total_demand'].idxmax()]
     pred_max = day['pred_power'].max()
-    pred_max_time = day['time'].iloc[day['pred_power'].idxmax()]
+    pred_max_time = day['time'].loc[day['pred_power'].idxmax()]
 
     train_mse = mean_squared_error(y_train_list, y_train_pred_list)
     train_mae = mean_absolute_error(y_train_list, y_train_pred_list)
@@ -195,9 +202,24 @@ for repeat in range(num_days, num_days+num_tests):
     x_train_scaled = x_scaled[train_start:train_end]
     y_train_scaled = y_scaled[train_end:train_end+output_window]
 
-print(results)
+#print(results)
+print('Log norm demand: ', log_norm)
+print('Number of days in sliding window: ', num_days)
+print('Training repeats (validation): ', val_days)
+print('Testing repeats: ', num_tests)
+print('Hidden size: ', hidden_size)
+print('Number of layers: ', num_layers)
+print('Learning rate: ', learning_rate)
+print('Avg train MSE: ', results['Train MSE'].mean())
+print('Avg test MSE: ', results['Test MSE'].mean())
+print('Avg train MAPE: ', results['Train MAPE'].mean())
+print('Avg test MAPE: ', results['Test MAPE'].mean())
 
 
+
+
+
+"""
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -223,4 +245,4 @@ axs[0].get_legend().remove()
 axs[1].get_legend().remove() 
 axs[2].get_legend().remove()
 plt.show()
-plt.close()
+plt.close()"""

@@ -117,6 +117,9 @@ if __name__ == "__main__":
     solar_power =  import_data(cwd, "POWER_POINT")
     solar_power["DATE"] = pd.to_datetime({"year": solar_power["YEAR"], "month": solar_power["MO"], "day": solar_power["DY"],"hour": solar_power["HR"],})
 
+    # solar power is at UTC, Sydney is at UTC+10
+    solar_power["DATE"] = solar_power["DATE"] + pd.Timedelta(hours=10)
+
     demand = import_data(cwd, "totaldemand_nsw")
     demand["DATE"] = pd.to_datetime(demand["DATETIME"], dayfirst=True)
 

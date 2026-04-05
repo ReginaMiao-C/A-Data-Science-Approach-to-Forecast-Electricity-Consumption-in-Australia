@@ -84,7 +84,7 @@ for n_est in estimators_options:
 
 plt.figure()
 plt.plot(df['date'].iloc[split_point:], y_true, label='Actual')
-plt.plot(df['date'].iloc[split_point:], best_pred, label='Best Prediction {best_combo}', linestyle = '--')
+plt.plot(df['date'].iloc[split_point:], best_pred, label='Best Prediction {best_combo}')
 plt.legend()
 plt.title('Best Hybrid SARIMAX And Gradient Boosting Prediction')
 plt.xlabel('Date')

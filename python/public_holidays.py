@@ -11,12 +11,15 @@ import datetime
 
 def next_weekday(date):
     weekday = date.weekday()
-    if weekday == 5:
-        date = date + datetime.timedelta(days=2)
-    elif weekday == 6:
-        date = date + datetime.timedelta(days=1)
 
-    return date
+    date_out = [date]
+
+    if weekday == 5:
+        date_out.append(date + datetime.timedelta(days=2))
+    elif weekday == 6:
+        date_out.append(date + datetime.timedelta(days=1))
+
+    return date_out
 
 
 def new_years_day(year):
@@ -61,20 +64,20 @@ def labour_day(year):
 def chistmas_boxing(year):
     date = datetime.date(year, month=12, day=25)
     if date.weekday() == 5 or date.weekday() == 6:
-        return [date + datetime.timedelta(days=1), date + datetime.timedelta(days=2)]
+        return [date, date + datetime.timedelta(days=1), date + datetime.timedelta(days=2)]
 
     if date.weekday() == 4:
-        return [date, date + datetime.timedelta(days=3)]
+        return [date, date + datetime.timedelta(days=1), date + datetime.timedelta(days=2), date + datetime.timedelta(days=3)]
     else:
         return [date, date + datetime.timedelta(days=1)]
 
 def easter_day(year):
     # returns Easter Sunday
     date = easter(year)
-    return [date - datetime.timedelta(days=2), date + datetime.timedelta(days=1)]
+    return [date - datetime.timedelta(days=2), date - datetime.timedelta(days=1), date, date + datetime.timedelta(days=1)]
 
 
-def holidays(year):
+def get_holidays(year):
 
     list_holidays = [
         new_years_day(year),
@@ -94,5 +97,3 @@ def holidays(year):
 
     return list_holidays
 
-for dy in holidays(2023):
-    print(dy)

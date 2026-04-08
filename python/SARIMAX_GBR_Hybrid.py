@@ -25,8 +25,6 @@ df['rain_solar_interaction'] = df['rainfall'] * df['solar_exposure']
 df['lag1'] = df['peak_power'].shift(1)
 df['lag7'] = df['peak_power'].shift(7)
 df['lag14'] = df['peak_power'].shift(14)
-df['rolling_mean7'] = df['peak_power'].rolling(7).mean()
-df['rolling_std7'] = df['peak_power'].rolling(7).std()
 
 df = df.dropna().reset_index(drop=True)
 
@@ -53,7 +51,7 @@ feature_cols = [
     'min_temperature', 'max_temperature',
     'solar_exposure', 'rainfall', 'pv_capacity',
     'lag1', 'lag7', 'lag14',
-    'resid_lag1', 'resid_lag7', 'temp_range', 'rain_solar_interaction', 'rolling_mean7','rolling_std7'
+    'resid_lag1', 'resid_lag7', 'temp_range', 'rain_solar_interaction'
 ]
 X = df[feature_cols]
 y = df['peak_power'] - sarimax_fit.fittedvalues.loc[df.index]
@@ -83,7 +81,6 @@ for n_est in estimators_options:
                 n_estimators=n_est,
                 max_depth=max_d,
                 learning_rate=lr,
-                subsample = 0.8,
                 max_features = 'sqrt',
                 random_state=0
             )

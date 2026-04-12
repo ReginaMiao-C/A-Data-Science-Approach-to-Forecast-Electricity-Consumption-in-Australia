@@ -33,37 +33,57 @@ def determine_lags(data, left, right, max_lags=48, top_n=5):
 
     return lags_limited[idx[:top_n]]
 
+def triplot(dataframe, location_to_save, filler=False):
+    """
+    Function to generate a triplot chart, with Power on the right and Temperature and solar on the left.
+    Separate axis for all three so that we can visualise behaviour
+
+    :param dataframe: data to plot
+    :param location_to_save: location to save figure (if None, just shows it)
+    :param filler: option to plot the mean +/- std for range analysis.
+    :return: None.
+    """
 
 
+    if filler:
+        mean = dataframe.mean()
+        std = dataframe.std()
 
-def triplot(dataframe, location_to_save):
     fig, ax1 = plt.subplots()
     # First axis (Demand)
     sns.lineplot(data=dataframe, x="hour_of_day", y="total_demand", ax=ax1, color="blue")
-    # sns.lineplot(data=mean+std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
-    # ax = sns.lineplot(data=mean-std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
-    # lines = ax.get_lines()
-    # plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='blue', alpha=0.1)
+
+    if filler:
+        sns.lineplot(data=mean+std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
+        ax = sns.lineplot(data=mean-std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
+        lines = ax.get_lines()
+        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='blue', alpha=0.1)
 
     ax1.set_ylabel("Power", color="blue")
 
     # Second axis (Temp)
     ax2 = ax1.twinx()
     sns.lineplot(data=dataframe, x="hour_of_day", y="temperature", ax=ax2, color="red")
-    # sns.lineplot(data=mean+std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
-    # ax = sns.lineplot(data=mean-std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
-    # lines = ax.get_lines()
-    # plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='red', alpha=0.1)
+
+    if filler:
+        sns.lineplot(data=mean+std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
+        ax = sns.lineplot(data=mean-std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
+        lines = ax.get_lines()
+        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='red', alpha=0.1)
+
     ax2.set_ylabel("Temperature", color="red")
 
     # Third axis (Solar Power)
     ax3 = ax1.twinx()
     ax3.spines["right"].set_position(("outward", 60))
     sns.lineplot(data=dataframe, x="hour_of_day", y="solar_power", ax=ax3, color="orange")
-    # sns.lineplot(data=mean+std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
-    # ax = sns.lineplot(data=mean-std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
-    # lines = ax.get_lines()
-    # plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='orange', alpha=0.1)
+
+    if filler:
+        sns.lineplot(data=mean+std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
+        ax = sns.lineplot(data=mean-std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
+        lines = ax.get_lines()
+        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='orange', alpha=0.1)
+
     ax3.set_ylabel("Solar Power", color="orange")
 
     plt.xticks(rotation=45)
@@ -76,8 +96,6 @@ def triplot(dataframe, location_to_save):
         plt.savefig(location_to_save)
     else:
         plt.show()
-
-
 
 
 cwd = Path.cwd()
@@ -103,16 +121,44 @@ summer_data = data[data["day_of_the_year"] == 355].groupby("hour_of_day").mean()
 #triplot(winter_data, root_folder / "figures" / "winter_solstice.png")
 #triplot(summer_data, root_folder / "figures" / "summer_solstice.png")
 
-print(determine_lags(winter_data, "total_demand", "temperature"))
-print(determine_lags(winter_data, "total_demand", "solar_power"))
+#print(determine_lags(winter_data, "total_demand", "temperature"))
+#print(determine_lags(winter_data, "total_demand", "solar_power"))
 
-print(determine_lags(summer_data, "total_demand", "temperature"))
-print(determine_lags(summer_data, "total_demand", "solar_power"))
+#print(determine_lags(summer_data, "total_demand", "temperature"))
+#print(determine_lags(summer_data, "total_demand", "solar_power"))
 
-print(determine_lags(data, "total_demand", "temperature", 12))
-print(determine_lags(data, "total_demand", "solar_power", 12))
+#print(determine_lags(data, "total_demand", "temperature", 12))
+#print(determine_lags(data, "total_demand", "solar_power", 12))
 
 
+#sns.lineplot(data=data, x="day_of_the_year", y="total_demand", ax=plt.gca())
+#plt.savefig(root_folder / "figures" / "daily_variation.png")
+
+data["year"] = data["datetime"].dt.year
+
+years = np.sort(data["year"].unique())
+# drop the first and last year due to incomplete data
+years = years[1:-2]
+
+energy_by_year = []
+
+for year in years:
+    demand = data[data["year"] == year]["total_demand"]
+    index = data[data["year"] == year].index
+    # convert time interval in hours from first:
+    time = (index - index[0]).total_seconds()/(60*60)
+
+    # integrate to find the total energy and convert from MWhr to Petajoules
+    total_demand = np.trapezoid(demand.values, time)/10**3/277.8
+    energy_by_year.append((year, total_demand))
+
+energy_by_year = np.array(energy_by_year)
+
+plt.plot(energy_by_year[:,0], energy_by_year[:,1])
+plt.xlabel("Year")
+plt.ylabel("Total Energy (Petajoules)")
+#plt.ylim([0, 300])
+plt.savefig(root_folder / "figures" / "yearly_power_usage_free_axis.png")
 
 if False:    # Plot
     x = data.index.weekday
@@ -259,10 +305,6 @@ if False:    # Plot
     plt.savefig(root_folder / "figures" / "mean_daily.png")
 
 if False:
-
-
-
-
     corr = cross_corr(data["temperature"], data["total_demand"])
     lags = np.arange(-len(data)+1, len(data))
 

@@ -8,49 +8,55 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 import matplotlib.pyplot as plt
 import seaborn as sns
+import public_holidays as ph
 
 # ensure reproducible results
 torch.manual_seed(0)
 
-year_month_day = False
-drop_orig_dates = False
+day_of_year = True
+drop_orig_dates = True #cyclical only
 ymd = ''
 cyclical_only = ''
+holidays = True
+no_ph = ''
+
+keep_weights = True
 
 # specify vars for droupout tests
 rainfall = True
 pv = True
 temp = True
 solar = True
+holidays = True
 
 # define which model used for validation
-model_1 = True
-model_2 = False
-model_3 = False
+model_1 = False
+model_2 = True
 
-epochs = 100
-num_layers = 1
-learning_rate = 0.001
-dropout_rate = 0
+
+epochs = 50
 
 if model_1:
-    hidden_size = 128
+    window_size = 70
+    hidden_size = 32
+    num_layers = 2
     mse_weight = 0.5
     mae_weight = 0.5
-    model_name = '1'
+    learning_rate = 0.005
+    dropout_rate = 0
+    model_name = 'model1'
 if model_2:
+    window_size = 98
     hidden_size = 128
+    num_layers = 1
     mse_weight = 1
     mae_weight = 0
-    model_name = '2'
-if model_3:
-    hidden_size = 140
-    mse_weight = 1
-    mae_weight = 0
-    model_name = '3'
+    learning_rate = 0.01
+    dropout_rate = 0
+    model_name = 'model2'
 
 
-keep_weights = True
+
 
 cwd = Path.cwd()
 root_folder = cwd.parent
@@ -73,10 +79,20 @@ df['year'] = df['date'].dt.year
 df['hour'] = df['time'].dt.hour
 df['min'] = df['time'].dt.minute
 
+
+if holidays:
+    no_ph = 'ph'
+    public_hols = []
+    for yr in df['year'].unique():
+        public_hols.extend(ph.get_holidays(yr))
+    public_hol_dates = pd.to_datetime(public_hols)
+    df['public_hol'] = df['date'].isin(public_hol_dates).astype(int)
+
+
 # cyclical encoding
-if year_month_day:
+if day_of_year:
     ymd = 'ymd_'
-    df['day'] = df['date'].dt.strftime('%j') #day of year
+    df['day'] = df['date'].dt.strftime('%j').astype(float) #day of year
     df['day_sin'] = np.where(df['year'].isin([2012.0, 2016.0, 2020.0]), np.sin(2 * np.pi * df['day'] / 366), np.sin(2 * np.pi * df['day'] / 365))
     df['day_cos'] = np.where(df['year'].isin([2012.0, 2016.0, 2020.0]), np.cos(2 * np.pi * df['day'] / 366), np.cos(2 * np.pi * df['day'] / 365))
     if drop_orig_dates:
@@ -159,13 +175,14 @@ if keep_weights:
 
 # split data for each training window
 obs = 48 #number of observations in a day
-for repeat in range(70*obs, len(val_data), 70*obs):
-    print(repeat)
+# val sample every 40 days to ensure good spread of days and months sampled across all years
+for repeat in range(98*obs, len(val_data), 40*obs):
+    print((repeat-98*obs)/(40*obs))
     # train on 70 day window to predict next day
     # validate on following day
     train_y_start = repeat
     train_y_end = repeat + obs
-    train_x_start = repeat - 70*obs
+    train_x_start = repeat - window_size*obs
     train_x_end = train_y_start
     val_y_start = train_y_start + obs
     val_y_end = train_y_end + obs
@@ -251,12 +268,12 @@ for repeat in range(70*obs, len(val_data), 70*obs):
 res_path = root_folder / 'Results' / 'LSTM'
 res_path.mkdir(parents=True,exist_ok=True)
 if keep_weights:
-    csv_name = 'train_val_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only +'.csv'
-    plot_name = 'peak_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only
+    csv_name = 'train_val_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph +'.csv'
+    plot_name = 'peak_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
     results.to_csv(res_path / csv_name)
 if not keep_weights:
-    csv_name = 'train_val_results_' + model_name + dropped_vars + ymd + cyclical_only +'.csv'
-    plot_name = 'peak_results_' + model_name + dropped_vars + ymd + cyclical_only
+    csv_name = 'train_val_results_' + model_name + dropped_vars + ymd + cyclical_only + no_ph + '.csv'
+    plot_name = 'peak_results_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
     results.to_csv(res_path / csv_name)
 
 sns.lineplot(data=results, x='date', y='true_peak', label='Actual')

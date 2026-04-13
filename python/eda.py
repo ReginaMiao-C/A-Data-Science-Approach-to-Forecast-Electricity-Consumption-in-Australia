@@ -88,24 +88,6 @@ plt.close()
 
 
 """
-fig, axs = plt.subplots(2, 5, figsize=(12,6))
-col_list = df.columns.tolist()[1:6]
-for col in col_list:
-    col_idx = col_list.index(col)
-    sns.histplot(df, x=col, ax=axs[0][col_idx], color='cadetblue')
-    sns.histplot(peak_df, x=col, ax=axs[1][col_idx], color='palevioletred')
-    axs[0][col_idx].set_title(col)
-    axs[0][col_idx].set_ylabel('')
-    axs[1][col_idx].set_ylabel('')
-fig.text(0.01, 0.68, 'All Demand', va='center', rotation=90, fontsize=12)
-fig.text(0.01, 0.23, 'Peak Demand', va='center', rotation=90, fontsize=12)
-plt.suptitle('Variable Counts')
-plt.tight_layout()
-fig.subplots_adjust(left=0.1) 
-plt.show()
-plt.close()
-
-"""
 col_list = df.columns.tolist()[1:6]
 for col in col_list:
     fig, axs = plt.subplots(1, 2, figsize=(8,5))
@@ -118,53 +100,73 @@ for col in col_list:
     axs[1].set_title('Peak Demand')
     img_name = col + '_histograms'
     plt.savefig(img_folder / img_name)
+    plt.close()
+"""
 
-
-sys.exit()
-
+"""
 df['demand'] = 'all'
 peak_df['demand'] = 'peak'
 comb_df = pd.concat([df, peak_df], ignore_index=True)
+"""
 
 
-# peak demand vs time
+
+## TEMPORAL DISTRIBUTIONS ##
+
+# peak demand over time
 jan_1 = df[(df['date'].dt.month == 1) & (df['date'].dt.day == 1)]['date']
 
-sns.lineplot(df, x='date', y='peak_power')
+plt.figure(figsize=(12, 5))
+sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None)
 for l in jan_1:
-    plt.axvline(x=l, color='darkgrey', linestyle='--', lw=0.5, zorder=1)
-plt.show()
-plt.clf()
-# NOTE: extreme demand values showwn in summer, lowest min values in winter
+    plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
+plt.title('Peak Demand')
+plt.savefig(img_folder / 'peak_demand_time')
+plt.close()
+# NOTE: extreme demand values shown in summer, lowest min values in winter
 
 
 
 ## daily statistics
 # TODO: add all vars once PV fixed - this is v much a proof of concept
-def avg_stats_across_years(var, axs):
+def avg_stats_across_years(d_frame, var, axs, ylab, xlab=False):
     """
     calculate aggregated statistics for each day across all years for the specified variable
     plot statistics on specified axis
     """
-    daily_stats = df.groupby(['month', 'day'])[var].agg(['mean', 'min', 'max']).reset_index()
+    daily_stats = d_frame.groupby(['month', 'day'])[var].agg(['mean', 'min', 'max']).reset_index()
     daily_stats['date'] = pd.to_datetime('2012' + '-' +daily_stats['month'].astype(str) + '-' + daily_stats['day'].astype(str), format='%Y-%m-%d')
     daily_stats = pd.melt(daily_stats, id_vars=['date'], value_vars=['mean', 'min', 'max'], var_name='statistic')
     sns.lineplot(daily_stats, x='date', y='value', hue='statistic', ax=axs)
     axs.set_xlim(daily_stats['date'].min(), daily_stats['date'].max()) 
     axs.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
-    axs.set_title(var)
+    axs.set_ylabel(ylab)
+    axs.grid(True, axis='x', linestyle='--', alpha=0.5)
+    if not xlab:
+        axs.set_xlabel('')
 
-df['month'] = df['date'].dt.month
-df['day'] = df['date'].dt.day
+def get_month_day(d_frame): 
+    d_frame['month'] = d_frame['date'].dt.month
+    d_frame['day'] = d_frame['date'].dt.day
+    return d_frame
 
-fig,ax = plt.subplots(2, 1, figsize=(10,6))
-avg_stats_across_years('peak_power', ax[0])
-avg_stats_across_years('min_temperature', ax[1])
-plt.show()
-plt.clf()
+df = get_month_day(df)
+peak_df = get_month_day(peak_df)
 
-cm = df.corr(numeric_only=True)
-print(cm)
-sns.heatmap(cm, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
-plt.show()  
-plt.clf()
+col_list = df.columns.tolist()[1:6]
+for col in col_list:
+    fig, ax = plt.subplots(2, 1, figsize=(8,6))
+    avg_stats_across_years(df, col, ax[0], 'All Demand')
+    avg_stats_across_years(peak_df, col, ax[1], 'Peak Demand', True)
+
+    handles, labels = ax[0].get_legend_handles_labels()
+    for axs in ax.flat:
+        axs.legend_.remove()
+    fig.legend(handles, labels, loc='upper right')
+    ax[0].set_title(col)
+    img_name = col + '_statistics'
+    plt.suptitle('Average Variable Statistics')
+    plt.tight_layout()
+    img_name = col + '_statistics'
+    plt.savefig(img_folder / img_name)
+    plt.close()

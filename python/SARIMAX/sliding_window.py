@@ -78,10 +78,7 @@ if __name__=="__main__":
             plt.plot(idx, forecasted_demand, color='r')
             plt.plot(idx, eval_data, color='b')
 
-        print(f"aic :{models.fitted_[0][0].model_["aic"]}")
-
         results_data = {"eval_date": end,
-                        "aic":models.fitted_[0][0].model_["aic"],
                         "peak_actual": np.max(eval_data),
                         "peak_predicted": np.max(forecasted_demand),
                         "time_of_peak_actual": idx[np.argmax(eval_data)],

@@ -6,7 +6,7 @@ cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
 # set source folder for data
-source_folder = Path(r'C:\Users\molly\OneDrive\Documents\UNSW\Project\Data')
+source_folder = Path(r'C:\Users\...')
 
 # read forecast demand data
 if (source_folder / 'forecastdemand_nsw.csv').exists():
@@ -47,7 +47,7 @@ forecast['forecast_date'] = pd.to_datetime(forecast['forecast_date'], format='%Y
 forecast['prev_date'] = forecast['date'] - pd.Timedelta(days=1)
 forecast = forecast[forecast['prev_date'] == forecast['forecast_date']]
 forecast = forecast.groupby('datetime').tail(1).reset_index(drop=True)
-forecast = forecast.drop(columns=['prev_date', 'forecast_datetime'])
+forecast = forecast.drop(columns=['prev_date', 'rainfall', 'pv_capacity', 'temperature', 'solar_power','time', 'date', 'forecast_date'])
 
 forecast.to_csv(data_folder / 'peak_forecasts.csv', index=False)
 

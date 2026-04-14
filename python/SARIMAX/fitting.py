@@ -2,18 +2,14 @@
 The purpose of this script is to determine the values of the SARIMAX parameters
 """
 from itertools import product
-
-import statsmodels.tsa.statespace.sarimax
 from scipy import stats
 from sklearn.metrics import mean_absolute_percentage_error
-from statsmodels.tsa.statespace.sarimax import SARIMAX
 import pandas as pd
 from pathlib import Path
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-import pmdarima as pm
 from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.seasonal import STL
 
@@ -111,20 +107,8 @@ def difference_testing(data, seasonal_value):
     print("ADF p:", adf_p, " | KPSS p:", kpss_p)
 
 
-def main():
-    pass
-
-# Using the special variable
-if __name__=="__main__":
-
-    # not using the decomp
-    decomposition = False
-    sweep_no_exo = False
-
+def get_data_normalised(data_folder):
     # load and use the datetime column to set the index:
-    cwd = Path.cwd()
-    root_folder = cwd.parent.parent
-    data_folder = root_folder / "data"
     data = pd.read_csv(data_folder / "all_data_30min.csv")
     data["datetime"] = pd.to_datetime(data["datetime"], yearfirst=True)
     data.index = data["datetime"]
@@ -178,6 +162,25 @@ if __name__=="__main__":
     data["solar_16"] = data["solar_power"].shift(16).values
     data["lag_48*7"] = data["total_demand"].shift(48 * 7)
     data = pd.concat([data, weekly_terms], axis=1)
+
+    return data
+
+
+def main():
+    pass
+
+# Using the special variable
+if __name__=="__main__":
+
+    # not using the decomp
+    decomposition = False
+    sweep_no_exo = False
+
+    cwd = Path.cwd()
+    root_folder = cwd.parent.parent
+    data_folder = root_folder / "data"
+    data = get_data_normalised(data_folder)
+
 
     # due to memory limitations will drop all the exogenous variables for the initial sweep;
     if sweep_no_exo:
@@ -265,44 +268,6 @@ if __name__=="__main__":
 
         # save all the data.
         df.to_csv(data_folder / "analysis_results_no_exo.csv", index=False)
-
-
-    start = datetime.datetime(year=2019, month=9, day=1)
-    end = start + datetime.timedelta(days=7 * 8)
-
-    train_set = data[start:end]["total_demand"]
-    train_exog = data[start: end].drop(["total_demand"], axis=1)
-    # use 1 day for the out of bag testing.
-    test_set = data[end: end + datetime.timedelta(days=1)]["total_demand"]
-    test_exog = data[end: end + datetime.timedelta(days=1)].drop("total_demand", axis=1)
-
-    sf_fixed = StatsForecast(models=[ARIMA(order=(2, 1, 0), seasonal_order=(2, 1, 0) , season_length=48)],
-                             freq='30min', n_jobs=-1)
-
-    train_sf = pd.DataFrame({"unique_id": "total_demand", "ds": train_set.index, "y": train_set.values})
-    #sf_fixed.fit(df=train_sf)
-
-    #fitted = sf_fixed.fitted_[0][0].model_
-    #print(fitted["bic"])
-
-    #get_stats(sf_fixed, None)
-
-    train_sf = pd.DataFrame({"unique_id": "total_demand", "ds": train_set.index, "y": train_set.values})
-    train_sf = train_sf.merge(train_exog[start:end], left_on="ds", right_index=True,how="left")
-    sf_fixed.fit(df=train_sf)
-
-    forecast_sf = sf_fixed.predict(len(test_set), test_exog)
-    forecast = np.exp(forecast_sf["AutoARIMA"].values)
-    actuals = np.exp(test_set.values)
-
-
-
-    fitted = sf_fixed.fitted_[0][0].model_
-    print(fitted["bic"])
-
-    get_stats(sf_fixed, train_exog.columns)
-
-
 
 
     if decomposition:

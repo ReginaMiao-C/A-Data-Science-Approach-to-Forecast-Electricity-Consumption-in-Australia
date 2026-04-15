@@ -12,9 +12,66 @@ from statsforecast import StatsForecast
 import pandas as pd
 from fitting import get_data_normalised, get_stats
 import numpy as np
+from multiprocessing import Pool, freeze_support
+import itertools
 
+def run_date_section(data, start, training_window, evaluation_window, using_exog=True):
+
+    print(f"running:{start}")
+
+    end = start + datetime.timedelta(days=training_window)
+    eval_end = end + datetime.timedelta(days=evaluation_window)
+
+    mask_train = (data.index >= start) & (data.index < end)
+    mask_test = (data.index >= end) & (data.index < eval_end)
+
+    training_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_train].index,
+                                 "y": data[mask_train]["total_demand"].values})
+    if using_exog:
+        training_set = training_set.merge(data[mask_train].drop(["total_demand"], axis=1), left_on="ds",
+                                          right_index=True, how="left")
+
+    if using_exog:
+        testing_set = data[mask_test]
+        testing_set = testing_set.drop(["total_demand"], axis=1)
+        testing_set["unique_id"] = "total_demand"
+        testing_set["ds"] = testing_set.index
+    else:
+        testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
+
+    models = StatsForecast(models=[ARIMA(order=(1, 0, 2), seasonal_order=(3, 1, 0), season_length=48)],
+                           freq='30min', n_jobs=-1)
+
+    # run the fitting routine.
+    models.fit(df=training_set)
+    fitted = models.fitted_[0][0].model_
+
+    # extract the values for the assessment.
+    if using_exog:
+        forecasted_demand = models.predict(len(testing_set), testing_set)["ARIMA"].values
+    else:
+        forecasted_demand = models.predict(len(testing_set))["ARIMA"].values
+
+    eval_data = data[mask_test]["total_demand"].values
+
+    print(f"{start}: {fitted['aic']}")
+
+    idx = testing_set.index.values
+    results_data = {"eval_date": end,
+                    "model aic": fitted['aic'],
+                    "peak_actual": np.max(eval_data),
+                    "peak_predicted": np.max(forecasted_demand),
+                    "time_of_peak_actual": idx[np.argmax(eval_data)],
+                    "time_of_peak_predicted": idx[np.argmax(forecasted_demand)],
+                    "mse": mean_squared_error(eval_data, forecasted_demand),
+                    "r2": r2_score(eval_data, forecasted_demand),
+                    "mae": mean_absolute_error(eval_data, forecasted_demand),
+                    "mape": mean_absolute_percentage_error(eval_data, forecasted_demand)}
+
+    return results_data
 
 if __name__=="__main__":
+    freeze_support()
 
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
@@ -26,13 +83,25 @@ if __name__=="__main__":
 
     # number of days to slide forward
     step = 1
-
     # set the strides etc in days so we can use the index.
-    start = datetime.datetime(year=2020, month=1, day=1)
     training_window = 7*8
     evaluation_window = 1
-    results = []
 
+    # start the date so the first prediction is the first day of the new year.
+    start = datetime.datetime(year=2020, month=1, day=1) - datetime.timedelta(days=training_window)
+    start_dates = [start + datetime.timedelta(days=i) for i in list(range(0, 365, step))]
+    func_args = [(data, start, training_window, evaluation_window, False) for start in start_dates]
+
+    with Pool(8) as pool:
+        results = pool.starmap(run_date_section, func_args)
+
+    df = pd.DataFrame(results)
+    df.sort_values(by="eval_date", inplace=True)
+    #df.to_csv(root_folder / "python" / "SARIMAX" / f"results_window_{datetime.date.today()}.csv")
+
+    exit()
+
+    # old single threaded version
     for i in range(365):
         start += datetime.timedelta(days=step)
 

@@ -174,7 +174,7 @@ if __name__=="__main__":
 
     # not using the decomp
     decomposition = False
-    sweep_no_exo = False
+    sweep_no_exo = True
 
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
@@ -211,7 +211,6 @@ if __name__=="__main__":
             sf = StatsForecast(
                 models=[AutoARIMA(
                     season_length=48,
-                    d=1, D=1,
                     max_p=5, max_q=5,
                     max_P=5, max_Q=5,
                     max_order=None,

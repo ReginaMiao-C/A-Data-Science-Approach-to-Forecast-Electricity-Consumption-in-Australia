@@ -6,8 +6,6 @@ import sys
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
-import matplotlib.pyplot as plt
-import seaborn as sns
 import public_holidays as ph
 
 class LSTMmodel(nn.Module):
@@ -23,10 +21,11 @@ class LSTMmodel(nn.Module):
         return out
 
 
-def preprocess_30_min_data(df, val_data_only=True, test_data_only=False):
+def preprocess_30_min_data(df, holidays = True, val_data_only=True, test_data_only=False):
     """
     preprocessing 'all_data_30min.csv' dataframe
     df: 'all_data_30min.csv'
+    holidays: include public holiday data
     val_data_only: returns all but 2020 data onwards (ensuring final test data not used)
     test_data_only: returns only testing data
     """
@@ -39,6 +38,15 @@ def preprocess_30_min_data(df, val_data_only=True, test_data_only=False):
     df['year'] = df['date'].dt.year
     df['hour'] = df['time'].dt.hour
     df['min'] = df['time'].dt.minute
+
+    if holidays:
+        public_hols = []
+        for yr in df['year'].unique():
+            public_hols.extend(ph.get_holidays(yr))
+        public_hol_dates = pd.to_datetime(public_hols)
+        df['public_hol'] = df['date'].isin(public_hol_dates).astype(int)
+
+
     # cyclical encoding
     df['month'] = df['date'].dt.month
     df['day'] = df['date'].dt.day
@@ -180,12 +188,14 @@ def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, d
      days_between_val: number of days in 'jumps' between window (if 1, window slides forward by 1 day)
     """
     window_slide = 48*days_between_val
-    if initial_val_y_start + (window_slide*num_repeats) > len(df) - 48:
+    if initial_val_y_start + (window_slide*(num_repeats-1)) > len(df) - 48:
         print('Error: Validation range cannot exceed ', len(df) - 48)
+        print('Current upper validation limit: ', initial_val_y_start + (window_slide*(num_repeats-1)))
         sys.exit()
     *model_info, model = initialise_model(df)
     for r in range(num_repeats):
         val_y_start = initial_val_y_start + (window_slide*r)
+        print(val_y_start)
         *train_info, model, y_train_pred, y_train = train_lstm(val_y_start, *model_info, model)
         val_results = validate_lstm(*train_info, model, df_datetime)
         results = calculate_metrics(*val_results, y_train, y_train_pred, results)
@@ -215,6 +225,8 @@ def display_metrics(results, save=False, file_path='', file_name=''):
         results.to_csv(file_path / file_name)
 
 
+### EXAMPLE CODE ###
+"""
 torch.manual_seed(0)
 
 cwd = Path.cwd()
@@ -229,3 +241,5 @@ df, df_datetime, results = eval_df(df)
 
 results = repeat_windows(df, results, df_datetime, val_y_start_idx, 1, 1)
 display_metrics(results)
+
+"""

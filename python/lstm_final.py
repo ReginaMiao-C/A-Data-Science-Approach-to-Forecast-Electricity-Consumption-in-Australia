@@ -15,7 +15,7 @@ torch.manual_seed(0)
 
 
 # specify vars for droupout tests
-rainfall = False
+rainfall = True
 pv = True
 temp = True
 solar = True
@@ -69,7 +69,6 @@ df['day'] = df['date'].dt.day
 df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
 df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
 df['day_sin'] = np.where(df['month']==2.0, np.where(df['year'].isin([2012.0, 2016.0, 2020.0]), np.sin(2 * np.pi * df['day'] / 29), np.sin(2 * np.pi * df['day'] / 28)), np.where(df['month'].isin([4.0, 6.0, 9.0, 11.0]), np.sin(2 * np.pi * df['day'] / 30), np.sin(2 * np.pi * df['day'] / 31)))
-    
 df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
 df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
 df['min_sin'] = np.sin(2 * np.pi * df['min'] / 60)
@@ -141,8 +140,8 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 public_hol_list = []
 obs = 48 #number of observations in a day
 # val sample every 40 days to ensure good spread of days and months sampled across all years
+
 for repeat in range(70*obs, len(val_data), 40*obs):
-    print((repeat-70*obs)/(40*obs))
     train_y_start = repeat
     train_y_end = repeat + obs
     train_x_start = repeat - window_size*obs
@@ -151,9 +150,8 @@ for repeat in range(70*obs, len(val_data), 40*obs):
     val_y_end = train_y_end + obs
     val_x_start = train_x_start + obs
     val_x_end = val_y_start
-    if holidays:
-        if x.iloc[val_y_start, 8] == 1:
-            public_hol_list.append(df_datetime.iloc[val_y_start, 0])
+
+
 
     x_train = x.iloc[train_x_start:train_x_end]
     y_train = y.iloc[train_y_start:train_y_end]

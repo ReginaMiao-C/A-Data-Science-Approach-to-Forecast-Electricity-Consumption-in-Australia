@@ -8,6 +8,8 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 import public_holidays as ph
 
+torch.manual_seed(0)
+
 class LSTMmodel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, dropout):
         super(LSTMmodel, self).__init__()
@@ -123,15 +125,11 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
         loss.backward() # computes loss gradients
         optimizer.step()
 
-    model.eval()
-    with torch.no_grad():
-        y_train_pred_scaled = model(x_train_scaled)
-    y_train_pred = scaler_y.inverse_transform(y_train_pred_scaled.detach().cpu().numpy().T)
 
-    return scaler_x, scaler_y, val_y_start, x, y, model, y_train_pred, y_train
+    return scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train
 
 
-def validate_lstm(scaler_x, scaler_y, val_y_start, x, y, model, df_datetime):
+def validate_lstm(scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, df_datetime):
     """
     validate trained model on new y data
     """
@@ -147,15 +145,18 @@ def validate_lstm(scaler_x, scaler_y, val_y_start, x, y, model, df_datetime):
 
     model.eval()
     with torch.no_grad():
+        y_train_pred_scaled = model(x_train_scaled)
         y_pred_scaled = model(x_val_scaled)
+    
+    y_train_pred = scaler_y.inverse_transform(y_train_pred_scaled.detach().cpu().numpy().T)
     y_pred = scaler_y.inverse_transform(y_pred_scaled.detach().cpu().numpy().T)
 
     day = df_datetime.iloc[val_y_start:val_y_end].copy().reset_index()
     day['pred_power'] = y_pred
 
-    return y_pred, day, y_val
+    return y_pred, y_train_pred, day, y_val
 
-def calculate_metrics(y_pred, day, y_val, y_train, y_train_pred, results):
+def calculate_metrics(y_pred, y_train_pred, day, y_val, y_train, results):
     """
     evaluate model performance for one window
     """
@@ -195,10 +196,9 @@ def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, d
     *model_info, model = initialise_model(df)
     for r in range(num_repeats):
         val_y_start = initial_val_y_start + (window_slide*r)
-        print(val_y_start)
-        *train_info, model, y_train_pred, y_train = train_lstm(val_y_start, *model_info, model)
+        *train_info, model, y_train = train_lstm(val_y_start, *model_info, model)
         val_results = validate_lstm(*train_info, model, df_datetime)
-        results = calculate_metrics(*val_results, y_train, y_train_pred, results)
+        results = calculate_metrics(*val_results, y_train, results)
 
     return results
 
@@ -209,6 +209,7 @@ def display_metrics(results, save=False, file_path='', file_name=''):
     file_path: folder to save csv file
     file_name: name of csv file
     """
+    print(results.head())
     print('Avg Train MSE: ', results['Total Train MSE'].mean())
     print('Avg Train MAE: ', results['Total Train MAE'].mean())
     print('Avg Train MAPE: ', results['Total Train MAPE'].mean())

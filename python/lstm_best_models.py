@@ -13,11 +13,11 @@ import public_holidays as ph
 # ensure reproducible results
 torch.manual_seed(0)
 
-day_of_year = True
-drop_orig_dates = True #cyclical only
+day_of_year = False
+drop_orig_dates = False #cyclical only
 ymd = ''
 cyclical_only = ''
-holidays = True
+holidays = False
 no_ph = ''
 
 keep_weights = True
@@ -30,8 +30,8 @@ solar = True
 holidays = True
 
 # define which model used for validation
-model_1 = False
-model_2 = True
+model_1 = True
+model_2 = False
 
 
 epochs = 50
@@ -171,7 +171,9 @@ if keep_weights:
     criterion_mse = nn.MSELoss() # penalise large errors more heavily
     criterion_mae = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    
+
+train_loss = []
+epoch_list = []
 
 # split data for each training window
 obs = 48 #number of observations in a day
@@ -219,7 +221,6 @@ for repeat in range(98*obs, len(val_data), 40*obs):
     
 
     # train model
-    train_loss = []
     model.train()
     for e in range(epochs):
         output = model(x_train_scaled) 
@@ -230,6 +231,7 @@ for repeat in range(98*obs, len(val_data), 40*obs):
         loss.backward() # computes loss gradients
         optimizer.step()
         train_loss.append(loss.item())
+        epoch_list.append(e)
 
     model.eval()
     with torch.no_grad():
@@ -270,16 +272,29 @@ res_path.mkdir(parents=True,exist_ok=True)
 if keep_weights:
     csv_name = 'train_val_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph +'.csv'
     plot_name = 'peak_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
+    plot_name_loss = 'train_loss_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
     results.to_csv(res_path / csv_name)
 if not keep_weights:
     csv_name = 'train_val_results_' + model_name + dropped_vars + ymd + cyclical_only + no_ph + '.csv'
     plot_name = 'peak_results_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
+    plot_name_loss = 'train_loss_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
     results.to_csv(res_path / csv_name)
 
 sns.lineplot(data=results, x='date', y='true_peak', label='Actual')
 sns.lineplot(data=results, x='date', y='pred_peak', label='Predicted')
 plt.legend()
 plt.savefig(res_path / plot_name)
+plt.close()
+
+
+loss_df = pd.DataFrame({'train_loss': train_loss, 'epoch': epoch_list}).reset_index()
+
+sns.lineplot(loss_df, y='train_loss', x='index')
+plt.savefig(res_path / plot_name_loss)
+plt.close()
+plot_name_loss = 'epoch_' + plot_name_loss
+sns.lineplot(loss_df, y='train_loss', x='epoch')
+plt.savefig(res_path / plot_name_loss)
 plt.close()
 
 print('Avg Train MSE: ', results['Total Train MSE'].mean())

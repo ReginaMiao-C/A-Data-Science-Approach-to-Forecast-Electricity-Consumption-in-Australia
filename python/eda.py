@@ -4,12 +4,13 @@ import matplotlib.dates as mdates
 import seaborn as sns
 from pathlib import Path
 import sys
+from colour_dict import demand_cols as vc
 
-def scatterplot_matrix(df, img_folder, img_name):
+def scatterplot_matrix(df, img_folder, img_name, colour):
     """
     scatterplot matrix of all numerical variables in dataframe
     """
-    p = sns.pairplot(df, plot_kws={'alpha': 0.1, 's': 10})
+    p = sns.pairplot(df, plot_kws={'alpha': 0.1, 's': 10, 'color':colour})
     plt.subplots_adjust(bottom=0.1)
     plt.savefig(img_folder / img_name)
     plt.close()
@@ -43,8 +44,8 @@ def var_distributions(df, peak_df, img_folder):
     col_list = df.columns.tolist()[1:6]
     for col in col_list:
         col_idx = col_list.index(col)
-        sns.violinplot(df[col], ax=axs[0][col_idx], color='cadetblue')
-        sns.violinplot(peak_df[col], ax=axs[1][col_idx], color='palevioletred')
+        sns.violinplot(df[col], ax=axs[0][col_idx], color=vc['all'])
+        sns.violinplot(peak_df[col], ax=axs[1][col_idx], color=vc['peak'])
         ymin, ymax = axs[0][col_idx].get_ylim()
         axs[1][col_idx].set_ylim(ymin, ymax)
         axs[0][col_idx].set_title(col)
@@ -59,11 +60,10 @@ def var_distributions(df, peak_df, img_folder):
     plt.close()
 
     # histograms of numerical variables
-    col_list = df.columns.tolist()[1:6]
     for col in col_list:
         fig, axs = plt.subplots(1, 2, figsize=(8,5))
-        sns.histplot(df, x=col, ax=axs[0], color='cadetblue', bins=50)
-        sns.histplot(peak_df, x=col, ax=axs[1], color='palevioletred', bins=50)
+        sns.histplot(df, x=col, ax=axs[0], color=vc['all'], bins=50)
+        sns.histplot(peak_df, x=col, ax=axs[1], color=vc['peak'], bins=50)
         xmin, xmax = axs[0].get_xlim()
         axs[1].set_xlim(xmin, xmax)
         axs[1].set_ylabel('')
@@ -73,9 +73,24 @@ def var_distributions(df, peak_df, img_folder):
         plt.savefig(img_folder / img_name)
         plt.close()
 
+    for col in col_list:
+        fig, axs = plt.subplots(1, 2, figsize=(6,5), layout='constrained')
+        sns.boxplot(df, y=col, ax=axs[0], color=vc['all'])
+        sns.boxplot(peak_df, y=col, ax=axs[1], color=vc['peak'])
+        axs[0].grid(axis='y')
+        axs[1].grid(axis='y')
+        ymin, ymax = axs[0].get_ylim()
+        axs[1].set_ylim(ymin, ymax)
+        axs[1].tick_params(axis='y', which='both', left=False, labelleft=False)
+        axs[0].set_title('All Demand')
+        axs[1].set_title('Peak Demand')
+        img_name = col + '_boxplot'
+        plt.savefig(img_folder / img_name)
+        plt.close()
+
     # histogram showing time of peak demand
     peak_df['hour_float'] = peak_df['datetime'].dt.hour + peak_df['datetime'].dt.minute / 60
-    sns.histplot(peak_df, x='hour_float', bins=48)
+    sns.histplot(peak_df, x='hour_float', bins=48, color=vc['peak'])
     plt.xticks(range(0, 24, 1))  # show every 2 hours
     plt.xlabel('Hour')
     plt.title('Time Frequency of Peak Demand')
@@ -89,11 +104,26 @@ def demand_time(df, img_folder):
     """
     jan_1 = df[(df['date'].dt.month == 1) & (df['date'].dt.day == 1)]['date']
     plt.figure(figsize=(12, 5))
-    sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None)
+    sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None, color='palevioletred')
     for l in jan_1:
         plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
     plt.title('Peak Demand')
     plt.savefig(img_folder / 'peak_demand_time')
+    plt.close()
+
+def demand_time_all(df, peak_df, img_folder):
+    """
+    plot all demand measurements over time
+    """
+    jan_1 = df[(df['date'].dt.month == 1) & (df['date'].dt.day == 1)]['date']
+    plt.figure(figsize=(12, 5))
+    axs = sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None, color=vc['all'], zorder=2, label='Power Demand')
+    sns.lineplot(peak_df, x='date', y='total_demand', lw=1, errorbar=None, color=vc['peak'], zorder=3, ax=axs, label='Peak Demand')
+    for l in jan_1:
+        plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
+    plt.title('Demand')
+    axs.legend()
+    plt.savefig(img_folder / 'demand_time')
     plt.close()
 
 
@@ -102,8 +132,9 @@ def avg_stats_across_years(d_frame, var, axs, ylab, xlab=False):
     calculate aggregated statistics for each day across all years for the specified variable
     plot statistics on specified axis
     """
+    stats_colours = {'mean': vc['var4'], 'min': vc['var3'], 'max': vc['var5']}
     daily_stats = d_frame.groupby(['month', 'day'])[var].agg(['mean', 'min', 'max']).reset_index()
-    daily_stats['date'] = pd.to_datetime('2012' + '-' +daily_stats['month'].astype(str) + '-' + daily_stats['day'].astype(str), format='%Y-%m-%d')
+    daily_stats['date'] = pd.to_datetime('2012' + '-' + daily_stats['month'].astype(str) + '-' + daily_stats['day'].astype(str), format='%Y-%m-%d')
     daily_stats = pd.melt(daily_stats, id_vars=['date'], value_vars=['mean', 'min', 'max'], var_name='statistic')
     sns.lineplot(daily_stats, x='date', y='value', hue='statistic', ax=axs)
     axs.set_xlim(daily_stats['date'].min(), daily_stats['date'].max()) 
@@ -157,8 +188,8 @@ def aemo_forecast(forecast, img_folder):
     forecast['datetime'] = pd.to_datetime(forecast['datetime'])
     forecast['forecast_datetime'] = pd.to_datetime(forecast['forecast_datetime'])
     forecast['resid'] = forecast['total_demand'] - forecast['forecast_demand']
-    sns.lineplot(forecast, x='datetime', y='resid', ax=axs[0], linewidth=0.5)
-    sns.scatterplot(forecast, x='forecast_demand', y='resid', ax=axs[1], alpha=0.2)
+    sns.lineplot(forecast, x='datetime', y='resid', ax=axs[0], linewidth=0.5, color=vc['var2'])
+    sns.scatterplot(forecast, x='forecast_demand', y='resid', ax=axs[1], alpha=0.2, color=vc['var2'])
     axs[1].set_ylabel('')
     plt.suptitle('AEMO Forecast Residuals')
     for ax in axs:
@@ -192,16 +223,32 @@ peak_demand_df = demand_df.loc[max_idx].reset_index(drop=True)
 forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
 # explore relationships between variables
-scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison')
-scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison')
+scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison', vc['all'])
+scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison', vc['peak'])
 corr_matrix (demand_df, peak_demand_df, img_folder)
 
 # explore variable distributions
 var_distributions(demand_df, peak_demand_df, img_folder)
 
 # explore temporal distributions
-demand_time(peak_demand_df, img_folder)
+#demand_time(peak_demand_df, img_folder)
+demand_time_all(demand_df, peak_demand_df, img_folder)
 daily_stats(demand_df, peak_demand_df, img_folder)
 
 # plot AEMO forecast distributions
 aemo_forecast(forecast_demand_df, img_folder)
+
+
+def statistic_reports(df, peak_df, col):
+    print('All Demand:')
+    print(df[col].describe())
+    print(df[col].skew())
+    print(df[col].kurt())
+    print('\nPeak Demand:')
+    print(peak_df[col].describe())
+    print(peak_df[col].skew())
+    print(peak_df[col].kurt())
+
+
+statistic_reports(demand_df, peak_demand_df, 'pv_capacity')
+

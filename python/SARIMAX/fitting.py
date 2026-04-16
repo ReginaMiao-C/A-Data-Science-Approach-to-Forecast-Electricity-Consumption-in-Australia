@@ -174,7 +174,7 @@ if __name__=="__main__":
 
     # not using the decomp
     decomposition = False
-    sweep_no_exo = False
+    sweep_no_exo = True
 
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
@@ -211,7 +211,6 @@ if __name__=="__main__":
             sf = StatsForecast(
                 models=[AutoARIMA(
                     season_length=48,
-                    d=1, D=1,
                     max_p=5, max_q=5,
                     max_P=5, max_Q=5,
                     max_order=None,
@@ -228,12 +227,12 @@ if __name__=="__main__":
             order = fitted['arma']  # (p, q, P, Q, s, d, D)
             arima_order = (order[0], order[5], order[1])
             seasonal_order = (order[2], order[6], order[3], order[4])
-            aic = fitted['aic']
+            aicc = fitted['aicc']
             loglik = fitted['loglik']
             coefs = fitted['coef']
 
             print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
-            print(f"  AIC    : {aic:.4f}")
+            print(f"  AIC    : {aicc:.4f}")
             print(f"  Log-Lik: {loglik:.4f}")
             print(f"  Coefficients:")
             for k, v in coefs.items():
@@ -255,7 +254,7 @@ if __name__=="__main__":
             results.append({"year": year, "month": month,
                             "train_start": start,  "train_end": end, "train_obs": len(train_set),
                             "arima_order": arima_order, "seasonal_order": seasonal_order,
-                            "aic": aic, "loglik": loglik,
+                            "aicc": aicc, "loglik": loglik,
                             "coefs": coefs,
                             "mse_oob": mse, "mape_oob": mape})
 
@@ -267,7 +266,7 @@ if __name__=="__main__":
         df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
 
         # save all the data.
-        df.to_csv(data_folder / "analysis_results_no_exo.csv", index=False)
+        df.to_csv(data_folder / "analysis_results_no_exo2.csv", index=False)
 
 
     if decomposition:

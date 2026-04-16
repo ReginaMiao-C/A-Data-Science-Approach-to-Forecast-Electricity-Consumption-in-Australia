@@ -90,14 +90,14 @@ if __name__=="__main__":
     # start the date so the first prediction is the first day of the new year.
     start = datetime.datetime(year=2020, month=1, day=1) - datetime.timedelta(days=training_window)
     start_dates = [start + datetime.timedelta(days=i) for i in list(range(0, 365, step))]
-    func_args = [(data, start, training_window, evaluation_window, False) for start in start_dates]
+    func_args = [(data, start, training_window, evaluation_window, using_exog) for start in start_dates]
 
     with Pool(8) as pool:
         results = pool.starmap(run_date_section, func_args)
 
     df = pd.DataFrame(results)
     df.sort_values(by="eval_date", inplace=True)
-    #df.to_csv(root_folder / "python" / "SARIMAX" / f"results_window_{datetime.date.today()}.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / f"results_window_{datetime.date.today()}_with_exog.csv")
 
     exit()
 
@@ -128,7 +128,7 @@ if __name__=="__main__":
         else:
             testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
 
-        models = StatsForecast(models=[ARIMA(order=(2, 1, 0), seasonal_order=(2, 1, 0), season_length=48)],
+        models = StatsForecast(models=[ARIMA(order=(1, 0, 5), seasonal_order=(2, 1, 0), season_length=48)],
                                  freq='30min', n_jobs=-1)
 
         # run the fitting routine.
@@ -147,7 +147,10 @@ if __name__=="__main__":
             plt.plot(idx, forecasted_demand, color='r')
             plt.plot(idx, eval_data, color='b')
 
+        print(f"aic :{models.fitted_[0][0].model_["aic"]}")
+
         results_data = {"eval_date": end,
+                        "aic":models.fitted_[0][0].model_["aic"],
                         "peak_actual": np.max(eval_data),
                         "peak_predicted": np.max(forecasted_demand),
                         "time_of_peak_actual": idx[np.argmax(eval_data)],

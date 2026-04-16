@@ -1,7 +1,10 @@
 """
 The purpose of this script is to determine the values of the SARIMAX parameters
 """
-from itertools import product
+import itertools
+import warnings
+from multiprocessing import freeze_support, Pool
+
 from scipy import stats
 from sklearn.metrics import mean_absolute_percentage_error
 import pandas as pd
@@ -169,8 +172,126 @@ def get_data_normalised(data_folder):
 def main():
     pass
 
+
+def run_date_section(data, start, training_window, evaluation_window, using_exog=False):
+
+    print(f"running:{start}")
+
+    end = start + datetime.timedelta(days=training_window)
+    eval_end = end + datetime.timedelta(days=evaluation_window)
+
+    mask_train = (data.index >= start) & (data.index < end)
+    mask_test = (data.index >= end) & (data.index < eval_end)
+
+    training_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_train].index,
+                                 "y": data[mask_train]["total_demand"].values})
+    if using_exog:
+        training_set = training_set.merge(data[mask_train].drop(["total_demand"], axis=1), left_on="ds",
+                                          right_index=True, how="left")
+
+    if using_exog:
+        testing_set = data[mask_test]
+        testing_set = testing_set.drop(["total_demand"], axis=1)
+        testing_set["unique_id"] = "total_demand"
+        testing_set["ds"] = testing_set.index
+    else:
+        testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
+
+    sf = StatsForecast(
+        models=[AutoARIMA(
+            season_length=48,
+            max_p=5, max_q=5,
+            max_P=5, max_Q=5,
+            max_order=None,
+            test="kpss", seasonal_test='ocsb',
+            trace=True, ic='aicc', nmodels=200
+        )],
+        freq='30min',
+        n_jobs=-1,
+    )
+
+    # catch a warning related to OCSB, it's annoying and the effect is not relevant for this report.
+    with warnings.catch_warnings(action="ignore"):
+        sf.fit(df=training_set)
+
+    # Unpack the model information.
+    fitted = sf.fitted_[0][0].model_
+    order = fitted['arma']  # (p, q, P, Q, s, d, D)
+    arima_order = (order[0], order[5], order[1])
+    seasonal_order = (order[2], order[6], order[3], order[4])
+    aic = fitted['aic']
+    loglik = fitted['loglik']
+    coefs = fitted['coef']
+
+    print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
+    print(f"  AIC    : {aic:.4f}")
+    print(f"  Log-Lik: {loglik:.4f}")
+    print(f"  Coefficients:")
+    for k, v in coefs.items():
+        print(f"    {k:>8s} = {v:.6f}")
+
+    # Forecast for the out-of-bag testing, include transform back to real space (from log).
+    if using_exog:
+        forecast_sf = sf.predict(testing_set.shape[0], testing_set)
+        forecast = np.exp(forecast_sf["AutoARIMA"].values)
+    else:
+        forecast_sf = sf.predict(h=testing_set.shape[0])
+        forecast = np.exp(forecast_sf["AutoARIMA"].values)
+
+    actuals = data[mask_test]["total_demand"].values
+
+    # calculate some values for the assessment of the model accuracy.
+    mse = np.mean((actuals - forecast) ** 2)
+    mape = mean_absolute_percentage_error(actuals, forecast)
+
+    print(f"\n  MSE    : {mse:.4f}")
+    print(f"  MAPE   : {mape:.4%}")
+
+    # pack data for later analysis:
+    results =  {"year": start.year, "month": start.month,
+                    "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
+                    "arima_order": arima_order, "seasonal_order": seasonal_order,
+                    "aic": aic, "loglik": loglik,
+                    "coefs": coefs,
+                    "mse_oob": mse, "mape_oob": mape}
+
+    return results
+
+
+
+def run_auto_fit(data):
+
+    years = [2018, 2019]
+    months = [1, 3, 6, 9]
+
+    # set the strides etc in days so we can use the index.
+    training_window = 7 * 8
+    evaluation_window = 1
+
+    start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
+    func_args = [(data, start, training_window, evaluation_window, False) for start in start_dates]
+
+
+    #for args in func_args:
+    #    results = run_date_section(*args)
+
+    with Pool(8) as pool:
+        results = pool.starmap(run_date_section, func_args)
+
+    df = pd.DataFrame(results)
+    df.sort_values(by=["year", "month"], inplace=True)
+    coef_df = df["coefs"].apply(pd.Series)
+    coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
+    df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
+
+    df.to_csv(root_folder/ "python"/ "SARIMAX" / "analysis_results_no_exo_16042026.csv", index=False)
+
+
+
 # Using the special variable
 if __name__=="__main__":
+
+    freeze_support()
 
     # not using the decomp
     decomposition = False
@@ -184,89 +305,7 @@ if __name__=="__main__":
 
     # due to memory limitations will drop all the exogenous variables for the initial sweep;
     if sweep_no_exo:
-        data = pd.DataFrame(data["total_demand"])
-        years = [2018, 2019]
-        months = [1, 3, 6, 9]
-
-        results = []
-
-        for year, month in product(years, months):
-
-            print(f"  Fitting: {year}-{month:02d}")
-
-            # Start/End values for the training data.
-            start = datetime.datetime(year=year, month=month, day=1)
-            end = start + datetime.timedelta(days=7 * 8)
-
-            train_set = data[start:end]["total_demand"]
-            # use 1 day for the out of bag testing.
-            test_set = data[end: end + datetime.timedelta(days=1)]["total_demand"]
-
-            print(f"  Train : {start.date()} to {end.date()}  ({len(train_set)} obs)")
-            print(f"  Test  : {end.date()} to {(end + datetime.timedelta(days=1)).date()}  ({len(test_set)} obs)")
-
-            # Format for StatsForecast
-            train_sf = pd.DataFrame({"unique_id": "total_demand", "ds": train_set.index, "y": train_set.values})
-
-            sf = StatsForecast(
-                models=[AutoARIMA(
-                    season_length=48,
-                    max_p=5, max_q=5,
-                    max_P=5, max_Q=5,
-                    max_order=None,
-                    seasonal_test='ocsb',
-                )],
-                freq='30min',
-                n_jobs=-1,
-            )
-
-            sf.fit(df=train_sf)
-
-            # Unpack the model information.
-            fitted = sf.fitted_[0][0].model_
-            order = fitted['arma']  # (p, q, P, Q, s, d, D)
-            arima_order = (order[0], order[5], order[1])
-            seasonal_order = (order[2], order[6], order[3], order[4])
-            aic = fitted['aic']
-            loglik = fitted['loglik']
-            coefs = fitted['coef']
-
-            print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
-            print(f"  AIC    : {aic:.4f}")
-            print(f"  Log-Lik: {loglik:.4f}")
-            print(f"  Coefficients:")
-            for k, v in coefs.items():
-                print(f"    {k:>8s} = {v:.6f}")
-
-            # Forecast for the out-of-bag testing, include transform back to real space (from log).
-            forecast_sf = sf.predict(h=len(test_set))
-            forecast = np.exp(forecast_sf["AutoARIMA"].values)
-            actuals = np.exp(test_set.values)
-
-            # calculate some values for the assessment of the model accuracy.
-            mse = np.mean((actuals - forecast) ** 2)
-            mape = mean_absolute_percentage_error(actuals, forecast)
-
-            print(f"\n  MSE    : {mse:.4f}")
-            print(f"  MAPE   : {mape:.4%}")
-
-            # pack data for later analysis:
-            results.append({"year": year, "month": month,
-                            "train_start": start,  "train_end": end, "train_obs": len(train_set),
-                            "arima_order": arima_order, "seasonal_order": seasonal_order,
-                            "aic": aic, "loglik": loglik,
-                            "coefs": coefs,
-                            "mse_oob": mse, "mape_oob": mape})
-
-        # repack the data into a dataframe to make saving easier.
-        df = pd.DataFrame(results)
-
-        coef_df = df["coefs"].apply(pd.Series)
-        coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
-        df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
-
-        # save all the data.
-        df.to_csv(data_folder / "analysis_results_no_exo.csv", index=False)
+        run_auto_fit(data)
 
 
     if decomposition:

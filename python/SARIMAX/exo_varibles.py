@@ -16,8 +16,8 @@ if __name__=="__main__":
     data_folder = root_folder / "data"
     data = get_data_normalised(data_folder)
 
-    start = datetime.datetime(year=2018, month=1, day=1)
-    end = start + datetime.timedelta(days=7 * 8)
+    start = datetime.datetime(year=2015, month=1, day=1)
+    end = start + datetime.timedelta(days=2*365)
 
     train_set = data[start:end]["total_demand"]
     train_exog = data[start: end].drop(["total_demand"], axis=1)

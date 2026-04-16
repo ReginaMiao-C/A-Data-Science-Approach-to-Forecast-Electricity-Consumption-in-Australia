@@ -41,8 +41,8 @@ if __name__=="__main__":
     sf = StatsForecast(
         models=[AutoARIMA(
             season_length=48,
-            max_p=2, max_q=2,
-            max_P=2, max_Q=2,
+            max_p=3, max_q=3,
+            max_P=3, max_Q=3,
             max_order=None,
             seasonal_test='ocsb',
         )],

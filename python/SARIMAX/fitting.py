@@ -200,11 +200,11 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     sf = StatsForecast(
         models=[AutoARIMA(
             season_length=48,
+            d=1, D=1,
             max_p=5, max_q=5,
             max_P=5, max_Q=5,
             max_order=None,
-            test="kpss", seasonal_test='ocsb',
-            trace=True, ic='aicc', nmodels=200
+            trace=False, ic='aicc', nmodels=200
         )],
         freq='30min',
         n_jobs=-1,

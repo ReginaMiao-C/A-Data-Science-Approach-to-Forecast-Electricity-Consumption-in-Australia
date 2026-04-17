@@ -158,11 +158,18 @@ def get_data_normalised(data_folder):
                                    "solar_power": normalized_data[:, 3],
                                    })
     weekly_terms = fourier_series(data.index, 7 * 48, K=1, t0=data.index[0])
+    yearly_tersm = fourier_series(data.index, 365*48, K=1, t0=data.index[0])
 
-    data["temp_1"] = data["temperature"].shift(1).values
-    data["temp_9"] = data["temperature"].shift(9).values
-    data["solar_4"] = data["solar_power"].shift(4).values
-    data["solar_16"] = data["solar_power"].shift(16).values
+    data["temp_1S"] = data["temperature"].shift(1).values*yearly_tersm["sin_17520_1"]
+    data["temp_9S"] = data["temperature"].shift(9).values*yearly_tersm["sin_17520_1"]
+    data["solar_4S"] = data["solar_power"].shift(4).values*yearly_tersm["sin_17520_1"]
+    data["solar_16S"] = data["solar_power"].shift(16).values*yearly_tersm["sin_17520_1"]
+
+    data["temp_1C"] = data["temperature"].shift(1).values*yearly_tersm["cos_17520_1"]
+    data["temp_9C"] = data["temperature"].shift(9).values*yearly_tersm["cos_17520_1"]
+    data["solar_4C"] = data["solar_power"].shift(4).values*yearly_tersm["cos_17520_1"]
+    data["solar_16C"] = data["solar_power"].shift(16).values*yearly_tersm["cos_17520_1"]
+
     data["lag_48*7"] = data["total_demand"].shift(48 * 7)
     data = pd.concat([data, weekly_terms], axis=1)
 
@@ -200,7 +207,8 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     sf = StatsForecast(
         models=[AutoARIMA(
             season_length=48,
-            d=1, D=1,
+            seasonal_test="ocsb",
+            test="kpss",
             max_p=5, max_q=5,
             max_P=5, max_Q=5,
             max_order=None,
@@ -238,7 +246,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
         forecast_sf = sf.predict(h=testing_set.shape[0])
         forecast = np.exp(forecast_sf["AutoARIMA"].values)
 
-    actuals = data[mask_test]["total_demand"].values
+    actuals = np.exp(data[mask_test]["total_demand"].values)
 
     # calculate some values for the assessment of the model accuracy.
     mse = np.mean((actuals - forecast) ** 2)
@@ -271,7 +279,7 @@ def run_auto_fit(data):
     start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
     func_args = [(data, start, training_window, evaluation_window, False) for start in start_dates]
 
-
+    # single threaded version:
     #for args in func_args:
     #    results = run_date_section(*args)
 
@@ -284,7 +292,11 @@ def run_auto_fit(data):
     coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
 
-    df.to_csv(root_folder/ "python"/ "SARIMAX" / "analysis_results_no_exo_16042026.csv", index=False)
+    try:
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_no_exo_{datetime.date.today()}.csv", index=False)
+    except Exception as e:
+        print(e)
+        df.to_csv(r"C:\Temp\file.csv", index=False)
 
 
 

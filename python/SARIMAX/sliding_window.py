@@ -54,15 +54,19 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     eval_data = data[mask_test]["total_demand"].values
 
-    print(f"{start}: {fitted['aic']}")
+    print(f"{start}: {fitted['aicc']}")
 
     idx = testing_set.index.values
     results_data = {"eval_date": end,
-                    "model aic": fitted['aic'],
-                    "peak_actual": np.max(eval_data),
-                    "peak_predicted": np.max(forecasted_demand),
-                    "time_of_peak_actual": idx[np.argmax(eval_data)],
-                    "time_of_peak_predicted": idx[np.argmax(forecasted_demand)],
+                    "model aicc": fitted['aicc'],
+                    "peak_actual_afternoon": np.max(eval_data[25:48]),
+                    "peak_predicted_afternoon": np.max(forecasted_demand[25:48]),
+                    "time_of_peak_actual_afternoon": idx[np.argmax(eval_data[25:48])],
+                    "time_of_peak_predicted_afternoon": idx[np.argmax(forecasted_demand[25:48])],
+                    "peak_actual_morning": np.max(eval_data[0:25]),
+                    "peak_predicted_morning": np.max(forecasted_demand[0:25]),
+                    "time_of_peak_actual_morning": idx[np.argmax(eval_data[0:25])],
+                    "time_of_peak_predicted_morning": idx[np.argmax(forecasted_demand[0:25])],
                     "mse": mean_squared_error(eval_data, forecasted_demand),
                     "r2": r2_score(eval_data, forecasted_demand),
                     "mae": mean_absolute_error(eval_data, forecasted_demand),

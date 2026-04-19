@@ -10,6 +10,9 @@ from sympy import public
 from public_holidays import get_holidays
 
 
+
+
+
 def cross_corr(x, y):
     x = (x - np.mean(x)) / np.std(x)
     y = (y - np.mean(y)) / np.std(y)

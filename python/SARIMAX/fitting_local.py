@@ -42,7 +42,7 @@ def fourier_series(dates, period, K, t0):
     return pd.DataFrame(X, index=dates, columns=list(X.keys()))
 
 
-def get_stats(model, exog_titles, _print=True):
+def get_stats(model, exog_titles):
     """
     Try to recreate the statistical information that R produces
 
@@ -50,11 +50,7 @@ def get_stats(model, exog_titles, _print=True):
     exog_titles: titles to use for the exog varibles.
     """
 
-    try:
-        fitted = model.fitted_[0][0].model_
-    except:
-        fitted = model.model_
-
+    fitted = model.fitted_[0][0].model_
     coefs = np.array(list(fitted['coef'].values()))
     labels = list(fitted['coef'].keys())
     # get the variance-covariance matrix
@@ -66,12 +62,8 @@ def get_stats(model, exog_titles, _print=True):
     # assume a two-tailed distribution
     p_values = 2 * (1 - stats.norm.cdf(np.abs(z_stats)))
 
-    if _print:
-
-        print(f"\n{'':>10s} {'Coef':>10s}   {'Std Err':>5s}{'z':>10s}  {'p-value':>10s} |  {'Sig':>5s}")
-        print("-" * 55)
-
-    results =  []
+    print(f"\n{'':>10s} {'Coef':>10s}   {'Std Err':>5s}{'z':>10s}  {'p-value':>10s} |  {'Sig':>5s}")
+    print("-" * 55)
 
     for enum, _ in enumerate(coefs):
         if labels[enum].startswith("ex"):
@@ -92,18 +84,10 @@ def get_stats(model, exog_titles, _print=True):
         else:
             sig = ""
 
-        if _print:
+        print(f"{label:>10s}:  {coefs[enum]:>10.4f}  {std_errors[enum]:>6.4f} {z_stats[enum]:>10.4f} {p_values[enum]:>10.4f} |  {sig:>5s}")
 
-            print(f"{label:>10s}:  {coefs[enum]:>10.4f}  {std_errors[enum]:>6.4f} {z_stats[enum]:>10.4f} "
-                  f"{p_values[enum]:>10.4f} |  {sig:>5s}")
 
-        results.append({"label":label,"value":coefs[enum],"std_error":std_errors[enum],"z_score":z_stats[enum],
-                        "p_value": p_values[enum],"significance":sig})
-
-    if _print:
-        print("\nSignificance codes:  *** 0.001  ** 0.01  * 0.05  . 0.1")
-
-    return pd.DataFrame.from_dict(results)
+    print("\nSignificance codes:  *** 0.001  ** 0.01  * 0.05  . 0.1")
 
 
 def difference_testing(data, seasonal_value):
@@ -209,10 +193,12 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     training_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_train].index,
                                  "y": data[mask_train]["total_demand"].values})
     if using_exog:
+
+        training_exog = data[mask_train].drop(["total_demand"], axis=1)
         training_set = training_set.merge(data[mask_train].drop(["total_demand"], axis=1), left_on="ds",
                                           right_index=True, how="left")
 
-    if using_exog:
+
         testing_set = data[mask_test]
         testing_set = testing_set.drop(["total_demand"], axis=1)
         testing_set["unique_id"] = "total_demand"
@@ -220,26 +206,19 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     else:
         testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
 
-    sf = StatsForecast(
-        models=[AutoARIMA(
-            season_length=48,
-            seasonal_test="ocsb",
-            test="kpss",
-            max_p=5, max_q=5,
-            max_P=5, max_Q=5,
-            max_order=None,
-            trace=True, ic='aicc', nmodels=200
-        )],
-        freq='30min',
-        n_jobs=-1,
-    )
+    model = ARIMA(order=(3, 1, 2), seasonal_order=(1, 0, 0), season_length=48)
 
-    # catch a warning related to OCSB, it's annoying and the effect is not relevant for this report.
-    with warnings.catch_warnings(action="ignore"):
-        sf.fit(df=training_set)
+    # Forecast for the out-of-bag testing, include transform back to real space (from log).
+    if using_exog:
+        testing_exog =  data[mask_test].drop(["total_demand"], axis=1)
+        model.fit(y=training_set.y, X=training_exog.to_numpy())
+        prediction = model.predict(h=48, level=[95], X=testing_exog.to_numpy())
+    else:
+        model.fit(y=training_set.y)
+        prediction = model.predict(h=48, level=[95])
 
     # Unpack the model information.
-    fitted = sf.fitted_[0][0].model_
+    fitted = model.model_
     order = fitted['arma']  # (p, q, P, Q, s, d, D)
     arima_order = (order[0], order[5], order[1])
     seasonal_order = (order[2], order[6], order[3], order[4])
@@ -249,20 +228,10 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
     print(f"  AIC    : {aic:.4f}")
-    print(f"  Log-Lik: {loglik:.4f}")
-    print(f"  Coefficients:")
-    for k, v in coefs.items():
-        print(f"    {k:>8s} = {v:.6f}")
 
-    # Forecast for the out-of-bag testing, include transform back to real space (from log).
-    if using_exog:
-        forecast_sf = sf.predict(testing_set.shape[0], testing_set)
-        forecast = np.exp(forecast_sf["AutoARIMA"].values)
-    else:
-        forecast_sf = sf.predict(h=testing_set.shape[0])
-        forecast = np.exp(forecast_sf["AutoARIMA"].values)
 
     actuals = np.exp(data[mask_test]["total_demand"].values)
+    forecast = np.exp(prediction["mean"])
 
     # calculate some values for the assessment of the model accuracy.
     mse = np.mean((actuals - forecast) ** 2)
@@ -285,11 +254,11 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
 def run_auto_fit(data):
 
-    years = [2018]
+    years = [2019]
     months = [1]
 
     # set the strides etc in days so we can use the index.
-    training_window = 365*2 # 8*8
+    training_window = 365
     evaluation_window = 1
 
     start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
@@ -307,12 +276,14 @@ def run_auto_fit(data):
     coef_df = df["coefs"].apply(pd.Series)
     coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
-
+    """
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_2_year.csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel.csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)
+        
+    """
 
 
 

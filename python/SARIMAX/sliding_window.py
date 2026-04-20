@@ -25,46 +25,41 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     mask_train = (data.index >= start) & (data.index < end)
     mask_test = (data.index >= end) & (data.index < eval_end)
 
-    training_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_train].index,
-                                 "y": data[mask_train]["total_demand"].values})
-    if using_exog:
-        training_set = training_set.merge(data[mask_train].drop(["total_demand"], axis=1), left_on="ds",
-                                          right_index=True, how="left")
+    testing_set = data[mask_test]
+    training_set = data[mask_train]
+    # build the ARIMA model
+    model = ARIMA(order=(1, 0, 4), seasonal_order=(3, 1, 0), season_length=48)
 
     if using_exog:
-        testing_set = data[mask_test]
-        testing_set = testing_set.drop(["total_demand"], axis=1)
-        testing_set["unique_id"] = "total_demand"
-        testing_set["ds"] = testing_set.index
+        training_exog = training_set.drop(["total_demand"], axis=1)
+        testing_exog = testing_set.drop(["total_demand"], axis=1)
+        model.fit(y=training_set["total_demand"].values, X=training_exog.to_numpy())
+        prediction = model.predict(h=48, level=[95], X=testing_exog.to_numpy())
     else:
-        testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
-
-    models = StatsForecast(models=[ARIMA(order=(1, 0, 2), seasonal_order=(3, 1, 0), season_length=48)],
-                           freq='30min', n_jobs=-1)
-
-    # run the fitting routine.
-    models.fit(df=training_set)
-    fitted = models.fitted_[0][0].model_
-
-    # extract the values for the assessment.
-    if using_exog:
-        forecasted_demand = models.predict(len(testing_set), testing_set)["ARIMA"].values
-    else:
-        forecasted_demand = models.predict(len(testing_set))["ARIMA"].values
-
-    eval_data = data[mask_test]["total_demand"].values
-
-    print(f"{start}: {fitted['aicc']}")
+        model.fit(y=training_set["total_demand"].values)
+        prediction = model.predict(h=48, level=[95])
 
     idx = testing_set.index.values
+    eval_data = testing_set["total_demand"]
+    forecasted_demand = prediction["mean"]
+    forecasted_hi = prediction["hi-95"]
+    forecasted_lo = prediction["lo-95"]
+
+    print(f"{start}: {model.model_['aicc']}")
+
+
     results_data = {"eval_date": end,
-                    "model aicc": fitted['aicc'],
+                    "model aicc": model.model_['aicc'],
                     "peak_actual_afternoon": np.max(eval_data[25:48]),
-                    "peak_predicted_afternoon": np.max(forecasted_demand[25:48]),
+                    "peak_predicted_afternoon_mean": np.max(forecasted_demand[25:48]),
+                    "peak_predicted_afternoon_hi": np.max(forecasted_hi[25:48]),
+                    "peak_predicted_afternoon_lo": np.max(forecasted_lo[25:48]),
                     "time_of_peak_actual_afternoon": idx[np.argmax(eval_data[25:48])],
                     "time_of_peak_predicted_afternoon": idx[np.argmax(forecasted_demand[25:48])],
                     "peak_actual_morning": np.max(eval_data[0:25]),
-                    "peak_predicted_morning": np.max(forecasted_demand[0:25]),
+                    "peak_predicted_morning_mean": np.max(forecasted_demand[0:25]),
+                    "peak_predicted_morning_hi": np.max(forecasted_hi[0:25]),
+                    "peak_predicted_morning_lo": np.max(forecasted_lo[0:25]),
                     "time_of_peak_actual_morning": idx[np.argmax(eval_data[0:25])],
                     "time_of_peak_predicted_morning": idx[np.argmax(forecasted_demand[0:25])],
                     "mse": mean_squared_error(eval_data, forecasted_demand),
@@ -96,6 +91,9 @@ if __name__=="__main__":
     start_dates = [start + datetime.timedelta(days=i) for i in list(range(0, 365, step))]
     func_args = [(data, start, training_window, evaluation_window, using_exog) for start in start_dates]
 
+    #for args in func_args:
+    #    results = run_date_section(*args)
+
     with Pool(8) as pool:
         results = pool.starmap(run_date_section, func_args)
 
@@ -104,6 +102,7 @@ if __name__=="__main__":
     df.to_csv(root_folder / "python" / "SARIMAX" / f"results_window_{datetime.date.today()}_with_exog.csv")
 
     exit()
+
 
     # old single threaded version
     for i in range(365):

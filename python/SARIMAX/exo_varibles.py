@@ -1,9 +1,12 @@
 import datetime
+from itertools import product
 from pathlib import Path
 
 from matplotlib import pyplot as plt
 from statsforecast.models import AutoARIMA, ARIMA
 from statsforecast import StatsForecast
+from sympy import false
+
 from fitting import get_stats, get_data_normalised
 import pandas as pd
 import numpy as np
@@ -16,81 +19,77 @@ if __name__=="__main__":
     data_folder = root_folder / "data"
     data = get_data_normalised(data_folder)
 
-    start = datetime.datetime(year=2015, month=1, day=1)
-    end = start + datetime.timedelta(days=2*365)
+    #data.drop(columns=['weekends', "holidays", "sin_336_1", "cos_336_1"], inplace=True)
 
-    train_set = data[start:end]["total_demand"]
-    train_exog = data[start: end].drop(["total_demand"], axis=1)
-    #train_exog.drop(["sin_336_1", "cos_336_1", "holidays", "weekends", "rainfall", "solar_power"], inplace=True, axis=1)
+    years = [2019]
+    months = [3,6,9,12,24,36]
 
+    p_values = {}
 
-    # use 1 day for the out of bag testing.
-    test_set = data[end: end + datetime.timedelta(days=1)]["total_demand"]
-    test_exog = data[end: end + datetime.timedelta(days=1)].drop("total_demand", axis=1)
-    #test_exog.drop(["sin_336_1", "cos_336_1", "holidays", "weekends", "rainfall", "solar_power"], inplace=True, axis=1)
+    for month in months:
 
-    #sf_fixed = StatsForecast(models=[ARIMA(order=(1, 0, 1), seasonal_order=(1, 1, 1) , season_length=48)],
-    #                         freq='30min', n_jobs=-1)
+        print(month)
 
-    train_sf = pd.DataFrame({"unique_id": "total_demand", "ds": train_set.index, "y": train_set.values})
-    train_sf = train_sf.merge(train_exog, left_on="ds", right_index=True, how="left")
+        #start = datetime.datetime(year=year, month=month, day=1)
+        #end = start + datetime.timedelta(days=365)
+        #eval_end = end +   datetime.timedelta(days=1)
 
+        eval_end = datetime.datetime(year=2019, month=2, day=27)
+        end = eval_end - datetime.timedelta(days=1)
+        start = end - datetime.timedelta(days=31*month)
 
-    #sf_fixed.fit(df=train_sf)
+        mask_train = (data.index >= start) & (data.index < end)
+        mask_test = (data.index >= end) & (data.index < eval_end)
 
-    sf = StatsForecast(
-        models=[AutoARIMA(
-            season_length=48,
-            max_p=3, max_q=3,
-            max_P=3, max_Q=3,
-            max_order=None,
-            seasonal_test='ocsb',
-        )],
-        freq='30min',
-        n_jobs=-1,
-    )
+        train_set = data[start:end]["total_demand"]
+        train_exog = data[start: end].drop(["total_demand"], axis=1)
 
-    sf.fit(df=train_sf)
+        # use 1 day for the out of bag testing.
+        test_set = data[mask_test]["total_demand"]
+        test_exog = data[mask_test].drop("total_demand", axis=1)
 
+        model = ARIMA(order=(2, 1, 0), seasonal_order=(1, 0, 0), season_length=48)
 
-    #fitted = sf_fixed.fitted_[0][0].model_
-    #print(fitted["bic"])
+        # Forecast for the out-of-bag testing, include transform back to real space (from log).
+        model.fit(y=train_set.values, X=train_exog.to_numpy())
+        prediction = model.predict(h=48, level=[95], X=test_exog.to_numpy())
 
-    #get_stats(sf_fixed, None)
+        fitted = model.model_
+        #print(fitted["aicc"])
 
-    train_sf = pd.DataFrame({"unique_id": "total_demand", "ds": train_set.index, "y": train_set.values})
-    #train_sf = train_sf.merge(train_exog[start:end], left_on="ds", right_index=True,how="left")
-    #sf_fixed.fit(df=train_sf)
+        # Unpack the model information.
+        #order = fitted['arma']  # (p, q, P, Q, s, d, D)
+        #arima_order = (order[0], order[5], order[1])
+        #seasonal_order = (order[2], order[6], order[3], order[4])
+        aic = fitted['aic']
+        #loglik = fitted['loglik']
+        #coefs = fitted['coef']
 
-    fitted = sf.fitted_[0][0].model_
-    print(fitted["aicc"])
-
-    # Unpack the model information.
-    fitted = sf.fitted_[0][0].model_
-    order = fitted['arma']  # (p, q, P, Q, s, d, D)
-    arima_order = (order[0], order[5], order[1])
-    seasonal_order = (order[2], order[6], order[3], order[4])
-    aic = fitted['aic']
-    loglik = fitted['loglik']
-    coefs = fitted['coef']
-
-    print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
-    print(f"  AIC    : {aic:.4f}")
-    print(f"  Log-Lik: {loglik:.4f}")
-    print(f"  Coefficients:")
-    for k, v in coefs.items():
-        print(f"    {k:>8s} = {v:.6f}")
+        #print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
+        print(f"  AIC    : {aic:.4f}")
+        #print(f"  Log-Lik: {loglik:.4f}")
+        #print(f"  Coefficients:")
+        #for k, v in coefs.items():
+        #    print(f"    {k:>8s} = {v:.6f}")
 
 
-    test_exog["ds"] = test_set.index
-    test_exog["unique_id"]= "total_demand"
+        #test_exog["ds"] = test_set.index
+        #test_exog["unique_id"]= "total_demand"
 
-    #forecasted_demand = sf_fixed.predict(49, X_df=test_exog)["ARIMA"].values
-    #eval_data = data[end:end+datetime.timedelta(days=1)]
+        #forecasted_demand = sf_fixed.predict(49, X_df=test_exog)["ARIMA"].values
+        #eval_data = data[end:end+datetime.timedelta(days=1)]
 
-    #plt.plot(eval_data.index, eval_data["total_demand"])
-    #plt.plot(eval_data.index, forecasted_demand)
-    #plt.show()
+        #plt.plot(eval_data.index, eval_data["total_demand"])
+        #plt.plot(eval_data.index, forecasted_demand)
+        #plt.show()
 
+        df = get_stats(model, train_exog.columns, _print=True)
+        #p_values[f"{month}"] = df["p_value"]
 
-    get_stats(sf, train_exog.columns)
+    results = pd.DataFrame.from_dict(p_values, orient='index')
+    results.columns = df["label"]
+
+    col_order = results.max().sort_values(ascending=False).index
+    results = results[col_order]
+
+    print(results)

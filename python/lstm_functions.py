@@ -63,7 +63,7 @@ def preprocess_30_min_data(df, holidays = True, val_data_only=True, test_data_on
     if val_data_only:
         df = df[(df['year'] != 2021) & (df['year'] != 2020)]
     elif test_data_only:
-        df = df[(df['year'] == 2021) | (df['year'] == 2020)]
+        df = df[(df['year'] == 2020)]
     return df
     
 

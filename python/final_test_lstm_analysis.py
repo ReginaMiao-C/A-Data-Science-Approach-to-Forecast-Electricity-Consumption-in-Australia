@@ -8,69 +8,140 @@ import public_holidays as ph
 import matplotlib.pyplot as plt
 import seaborn as sns
 from colour_dict import demand_cols as vc
+import matplotlib.dates as mdates
+
+
+
+def process_dfs(df, aemo_df, df_format='%Y-%m-%d'):
+    df['date'] = pd.to_datetime(df['date'], format=df_format)
+    df['true_peak_time'] = pd.to_datetime(df['true_peak_time'], format='%H:%M:%S')
+    df['pred_peak_time'] = pd.to_datetime(df['pred_peak_time'], format='%H:%M:%S')
+
+    aemo_df['datetime'] = pd.to_datetime(aemo_df['datetime'])
+    aemo_df['time'] = aemo_df['datetime'].dt.time
+    aemo_df['time'] = pd.to_datetime(aemo_df['time'], format='%H:%M:%S')
+    aemo_df['date'] = aemo_df['datetime'].dt.date
+    aemo_df['date'] = pd.to_datetime(aemo_df['date'], format='%Y-%m-%d')
+
+    aemo_df_filtered = aemo_df[['date', 'time', 'forecast_demand']].copy()
+    aemo_df_filtered = aemo_df_filtered.rename(columns={'time': 'aemo_peak_time', 'forecast_demand': 'aemo_pred_peak'})
+    df_filtered = df[['date', 'true_peak', 'true_peak_time', 'pred_peak', 'pred_peak_time']].copy()
+    df_comb = pd.merge(df_filtered, aemo_df_filtered, on='date', how='left')
+    return df, df_comb
+
+def plot_results(df, res_path, model_name):
+    df['resid'] = df['true_peak'] - df['pred_peak']
+    fig, axs = plt.subplots(2, 1, figsize=(12, 6))
+    sns.lineplot(df, x='date', y='true_peak', color='orange', ax = axs[0], label='True Value')
+    sns.lineplot(df, x='date', y='pred_peak', color='brown', ax = axs[0], linestyle='--', label='LSTM Prediction', linewidth=1)
+    axs[0].legend()
+    sns.scatterplot(df, x='date', y='resid', color='brown', ax = axs[1], alpha=0.6)
+    axs[0].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axs[0].xaxis.set_minor_locator(mdates.MonthLocator(interval=1))
+    axs[1].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axs[1].xaxis.set_minor_locator(mdates.MonthLocator(interval=1))
+    axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
+    axs[0].grid(axis='x', linestyle='--', color='lightgrey', zorder=1, which='both')
+    axs[1].grid(axis='x', linestyle='--', color='lightgrey', zorder=1, which='both')
+    axs[0].set_xlabel('')
+    axs[1].set_xlabel('Date')
+    axs[0].set_ylabel('Peak Power (MW)')
+    axs[1].set_ylabel('Residuals (MW)')
+    img_name = 'pred_vs_actual_' + model_name
+    plt.savefig(res_path / img_name)
+    plt.close()
+
+    df['time_resid'] = (df['true_peak_time'] - df['pred_peak_time']).dt.total_seconds() / 60
+    fig, axs = plt.subplots(2, 1, figsize=(12, 6))
+    sns.lineplot(df, x='date', y='true_peak_time', color='orange', label='True Value', ax = axs[0])
+    sns.lineplot(df, x='date', y='pred_peak_time', color='brown',  ax = axs[0], linestyle='--', label='LSTM Prediction', linewidth=1)
+    axs[0].legend()
+    sns.scatterplot(df, x='date', y='time_resid', color='brown', ax = axs[1], alpha=0.6, zorder=2)
+    axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
+    axs[0].yaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    axs[0].yaxis.set_major_locator(mdates.HourLocator(interval=4))
+    axs[0].yaxis.set_minor_locator(mdates.HourLocator(interval=2))
+    axs[0].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axs[1].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axs[0].set_xlabel('')
+    axs[1].set_xlabel('Date')
+    axs[0].set_ylabel('Peak Time')
+    axs[1].set_ylabel('Residuals (Minutes)')
+    axs[0].grid(axis='y', linestyle='--', color='lightgrey', zorder=1, which='both')
+    axs[1].grid(axis='y', linestyle='--', color='lightgrey', zorder=0)
+    img_name = 'pred_vs_actual_time_' + model_name
+    plt.savefig(res_path / img_name)
+    plt.close()
+
+
+def plot_resids(df, res_path, model_name):
+    df['pred_resid'] = df['true_peak'] -  df['pred_peak'] 
+    df['aemo_resid'] = df['true_peak'] -  df['aemo_pred_peak'] 
+    df = df[['date', 'pred_resid', 'aemo_resid']]
+    df_diff = df.copy()
+    df_diff['differences'] = df_diff['aemo_resid'].abs() - df_diff['pred_resid'].abs()
+
+    fig, axs = plt.subplots(2, 1, figsize=(12, 8))
+    sns.scatterplot(df_diff, x='date', y='differences', color='sienna', ax=axs[1], alpha=0.7)
+
+    df = df.rename(columns={'pred_resid': 'LSTM', 'aemo_resid': 'AEMO'})
+    df = df.melt(id_vars='date', value_vars=['LSTM', 'AEMO'], var_name='Prediction', value_name='Peak Power')
+    pred_colors = {'LSTM':'brown', 'AEMO':'salmon'}
+    sns.lineplot(df, x='date', y='Peak Power', hue='Prediction', palette=pred_colors, ax=axs[0])
+    axs[0].axhline(0, color='grey', linestyle=':', zorder=1) 
+    axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
+    axs[0].set_ylabel('Residuals (MW)')
+    axs[1].set_ylabel('Absolute Residual Differences (AEMO - LSTM)')
+    axs[0].set_xlabel('')
+    axs[0].set_xlabel('Date')
+    axs[0].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axs[0].xaxis.set_minor_locator(mdates.MonthLocator(interval=1))
+    axs[1].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axs[1].xaxis.set_minor_locator(mdates.MonthLocator(interval=1))
+    axs[0].grid(axis='x', linestyle='--', color='lightgrey', zorder=0, which='both')
+    axs[1].grid(axis='x', linestyle='--', color='lightgrey', zorder=0)
+
+    img_name = 'residual_comparison_' + model_name
+    plt.savefig(res_path / img_name)
+    plt.close()
+    print(df_diff['differences'].sum())
+
 
 cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
 
-res_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Test'
+csv_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Test'
+save_path = csv_path
 
 
-df_all = pd.read_csv(res_path / 'all_final.csv')
-df_all['date'] = pd.to_datetime(df_all['date'], format='%Y-%m-%d')
-df_all['true_peak_time'] = pd.to_datetime(df_all['true_peak_time'], format='%H:%M:%S')
-df_all['pred_peak_time'] = pd.to_datetime(df_all['pred_peak_time'], format='%H:%M:%S')
-
-
-def plot_res(df, title):
-    df['resid'] = df['true_peak'] - df['pred_peak']
-    fig, axs = plt.subplots(2, 1, figsize=(12, 6))
-    sns.lineplot(df, x='date', y='true_peak', color='orange', ax = axs[0])
-    sns.lineplot(df, x='date', y='pred_peak', color='brown', ax = axs[0], linestyle='--')
-    sns.scatterplot(df, x='date', y='resid', color='grey', ax = axs[1])
-    #plt.suptitle(title)
-    plt.savefig(res_path / 'pred_vs_actual_final')
-    plt.close()
-    sns.lineplot(df, x='date', y='true_peak_time', color='orange')
-    sns.lineplot(df, x='date', y='pred_peak_time', color='brown')
-    plt.savefig(res_path / 'pred_residuals_final')
-    plt.close()
-
-plot_res(df_all, 'All 2020')
+df_all = pd.read_csv(csv_path / 'all_final.csv')
 
 forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
-forecast_demand_df['datetime'] = pd.to_datetime(forecast_demand_df['datetime'])
-forecast_demand_df['time'] = forecast_demand_df['datetime'].dt.time
-forecast_demand_df['time'] = pd.to_datetime(forecast_demand_df['time'], format='%H:%M:%S')
-forecast_demand_df['date'] = forecast_demand_df['datetime'].dt.date
-forecast_demand_df['date'] = pd.to_datetime(forecast_demand_df['date'], format='%Y-%m-%d')
+df_all, resid_df = process_dfs(df_all, forecast_demand_df)
+
+plot_results(df_all, save_path, 'final')
+
+plot_resids(resid_df, save_path, 'final')
+
+"""
+
+csv_path = root_folder / 'Results' / 'LSTM' / 'Final'
+save_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'HP Tune'
+save_path.mkdir(parents=True,exist_ok=True)
 
 
+df_m4 = pd.read_csv(csv_path / 'm4.csv')
+df_m2 = pd.read_csv(csv_path / 'm2.csv')
+forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
-forecast_demand_df_filtered = forecast_demand_df[['date', 'time', 'forecast_demand']]
-forecast_demand_df_filtered = forecast_demand_df_filtered.rename(columns={'time': 'aemo_peak_time', 'forecast_demand': 'aemo_pred_peak'})
-df_all_filtered = df_all[['date', 'true_peak', 'true_peak_time', 'pred_peak', 'pred_peak_time']]
 
-df_comb = pd.merge(df_all_filtered, forecast_demand_df_filtered, on='date', how='left')
-df_comb['pred_resid'] = df_comb['pred_peak'] - df_comb['true_peak']
-df_comb['aemo_resid'] = df_comb['aemo_pred_peak'] - df_comb['true_peak']
+df_m4, resid_df_4 = process_dfs(df_m4, forecast_demand_df)
+plot_results(df_m4, save_path, 'm4')
+plot_resids(resid_df_4, save_path, 'm4')
 
-df_resid = df_comb[['date', 'pred_resid', 'aemo_resid']]
-df_resid_diff = df_resid.copy()
-df_resid_diff['differences'] = df_resid_diff['aemo_resid'] - df_resid_diff['pred_resid']
 
-sns.lineplot(df_resid_diff, x='date', y='differences', color='sienna')
-plt.axhline(0, color='lightgrey', linestyle='--', zorder=1) 
-plt.savefig(res_path / 'residual_differences_final')
-plt.close()
-print(df_resid_diff['differences'].sum())
-
-df_resid = df_resid.rename(columns={'pred_resid': 'LSTM', 'aemo_resid': 'AEMO'})
-df_resid = df_resid.melt(id_vars='date', value_vars=['LSTM', 'AEMO'], var_name='Prediction', value_name='Peak Power')
-
-pred_colors = {'LSTM':'brown', 'AEMO':'salmon'}
-sns.lineplot(df_resid, x='date', y='Peak Power', hue='Prediction', palette=pred_colors)
-plt.axhline(0, color='lightgrey', linestyle='--', zorder=1) 
-plt.savefig(res_path / 'residual_comparison_final')
-plt.close()
+df_m2, resid_df_2 = process_dfs(df_m2, forecast_demand_df)
+plot_results(df_m2, save_path, 'm2')
+plot_resids(resid_df_2, save_path, 'm2')"""

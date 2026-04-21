@@ -12,14 +12,20 @@ from pathlib import Path
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.seasonal import STL
+from statsmodels.graphics.gofplots import qqplot
 
-from statsforecast.models import AutoARIMA, ARIMA
+from statsforecast.models import AutoARIMA
 from statsforecast import StatsForecast
+from scipy.stats import norm
+
+from coreforecast.scalers import boxcox_lambda, boxcox
 
 from python.public_holidays import get_holidays
+
+from python.colour_dict import *
 
 
 def fourier_series(dates, period, K, t0):
@@ -192,13 +198,61 @@ def get_data_normalised(data_folder):
     return data
 
 
+def get_data(data_folder):
+    # load and use the datetime column to set the index:
+    data = pd.read_csv(data_folder / "all_data_30min.csv")
+    data["datetime"] = pd.to_datetime(data["datetime"], yearfirst=True)
+    data.index = data["datetime"]
+    data.drop("datetime", axis=1, inplace=True)
+
+    holidays = []
+    for i in range(10):
+        year = 2010 + i
+        holidays.append(get_holidays(year))
+
+    holidays = [dt for sublist in holidays for dt in sublist]
+
+    one_hot_holidays = np.zeros_like(data.index, dtype=int)
+    one_hot_weekdays = np.zeros_like(data.index, dtype=int)
+
+    for enum, day_of_index in enumerate(data.index):
+
+        temp_date = datetime.date(day_of_index.year, day_of_index.month, day_of_index.day)
+
+        if temp_date in holidays:
+            one_hot_holidays[enum] = 1
+
+        if temp_date.weekday() == 5 or temp_date.weekday() == 6:
+            one_hot_weekdays[enum] = 1
+
+    weekly_terms = fourier_series(data.index, 7 * 48, K=1, t0=data.index[0])
+    #yearly_tersm = fourier_series(data.index, 365*48, K=1, t0=data.index[0])
+
+    data["temp_1"] = data["temperature"].shift(1).values#*yearly_tersm["sin_17520_1"]
+    data["temp_9"] = data["temperature"].shift(9).values#*yearly_tersm["sin_17520_1"]
+    data["solar_4"] = data["solar_power"].shift(4).values#*yearly_tersm["sin_17520_1"]
+    data["solar_16"] = data["solar_power"].shift(16).values#*yearly_tersm["sin_17520_1"]
+
+    #data["temp_1C"] = data["temperature"].shift(1).values*yearly_tersm["cos_17520_1"]
+    #data["temp_9C"] = data["temperature"].shift(9).values*yearly_tersm["cos_17520_1"]
+    #data["solar_4C"] = data["solar_power"].shift(4).values*yearly_tersm["cos_17520_1"]
+    #data["solar_16C"] = data["solar_power"].shift(16).values*yearly_tersm["cos_17520_1"]
+
+    data["lag_48*7"] = data["total_demand"].shift(48 * 7)
+    data = pd.concat([data, weekly_terms], axis=1)
+
+    data.dropna(inplace=True, how="all", axis=0)
+
+    return data
+
+
 def main():
     pass
 
 
 def run_date_section(data, start, training_window, evaluation_window, using_exog=False):
 
-    print(f"running:{start}")
+    print(f"running:{start}:{using_exog}")
 
     end = start + datetime.timedelta(days=training_window)
     eval_end = end + datetime.timedelta(days=evaluation_window)
@@ -206,40 +260,26 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     mask_train = (data.index >= start) & (data.index < end)
     mask_test = (data.index >= end) & (data.index < eval_end)
 
-    training_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_train].index,
-                                 "y": data[mask_train]["total_demand"].values})
-    if using_exog:
-        training_set = training_set.merge(data[mask_train].drop(["total_demand"], axis=1), left_on="ds",
-                                          right_index=True, how="left")
+    training_set = data[mask_train]
+    testing_set = data[mask_test]
 
-    if using_exog:
-        testing_set = data[mask_test]
-        testing_set = testing_set.drop(["total_demand"], axis=1)
-        testing_set["unique_id"] = "total_demand"
-        testing_set["ds"] = testing_set.index
-    else:
-        testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
-
-    sf = StatsForecast(
-        models=[AutoARIMA(
+    sf = AutoARIMA(
             season_length=48,
             seasonal_test="ocsb",
             test="kpss",
             max_p=5, max_q=5,
             max_P=5, max_Q=5,
-            max_order=None,
-            trace=True, ic='aicc', nmodels=200
-        )],
-        freq='30min',
-        n_jobs=-1,
-    )
+            trace=True, ic='aicc', nmodels=200)
 
     # catch a warning related to OCSB, it's annoying and the effect is not relevant for this report.
     with warnings.catch_warnings(action="ignore"):
-        sf.fit(df=training_set)
+        if using_exog:
+            sf.fit(training_set["total_demand"], training_set.drop(columns=["total_demand"], axis=1).to_numpy())
+        else:
+            sf.fit(training_set["total_demand"])
 
     # Unpack the model information.
-    fitted = sf.fitted_[0][0].model_
+    fitted = sf.model_
     order = fitted['arma']  # (p, q, P, Q, s, d, D)
     arima_order = (order[0], order[5], order[1])
     seasonal_order = (order[2], order[6], order[3], order[4])
@@ -256,14 +296,15 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     # Forecast for the out-of-bag testing, include transform back to real space (from log).
     if using_exog:
-        forecast_sf = sf.predict(testing_set.shape[0], testing_set)
-        forecast = np.exp(forecast_sf["AutoARIMA"].values)
+        forecast_sf = sf.predict(h=testing_set.shape[0],
+                                 X=testing_set.drop(columns=["total_demand"], axis=1).to_numpy(),
+                                 level=[95])
     else:
-        forecast_sf = sf.predict(h=testing_set.shape[0])
-        forecast = np.exp(forecast_sf["AutoARIMA"].values)
+        forecast_sf = sf.predict(h=testing_set.shape[0],
+                                 level=[95])
 
-    actuals = np.exp(data[mask_test]["total_demand"].values)
-
+    forecast = forecast_sf["mean"]
+    actuals =  data[mask_test]["total_demand"].values
     # calculate some values for the assessment of the model accuracy.
     mse = np.mean((actuals - forecast) ** 2)
     mape = mean_absolute_percentage_error(actuals, forecast)
@@ -273,6 +314,8 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     # pack data for later analysis:
     results =  {"year": start.year, "month": start.month,
+                #"box_cox_lambda":bcl,
+                "exog": using_exog,
                     "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
                     "arima_order": arima_order, "seasonal_order": seasonal_order,
                     "aic": aic, "loglik": loglik,
@@ -282,18 +325,30 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     return results
 
 
+def boxcox_backtransform_biasadj(fc_mean, fc_lower, fc_upper, lam):
+    #Back-transform Box-Cox forecast with bias adjustment (https://robjhyndman.com/hyndsight/backtransforming/).
+
+    # estimate the variance:
+    z = norm.ppf(0.975)
+    fvar = ((fc_upper - fc_lower) / (2 * z)) ** 2
+    # calculate the mean
+    mean_orig = np.power(lam * fc_mean + 1, 1 / lam)
+    # adjust the mean.
+    adjusted_mean = mean_orig * (1 + 0.5 * fvar * (1 - lam) / (mean_orig ** (2 * lam)))
+
+    return adjusted_mean
+
 
 def run_auto_fit(data):
 
-    years = [2018]
-    months = [1]
+    years = [2017,2018]
+    months = [1,3,6,9]
 
-    # set the strides etc in days so we can use the index.
-    training_window = 365*2 # 8*8
+    training_window = 8*7
     evaluation_window = 1
 
-    start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
-    func_args = [(data, start, training_window, evaluation_window, True) for start in start_dates]
+    func_args = [(data, datetime.datetime(year=year, month=month, day=1), training_window, evaluation_window, exog)
+                 for (year, month, exog) in itertools.product(years, months, [True, False])]
 
     # single threaded version:
     #for args in func_args:
@@ -309,7 +364,7 @@ def run_auto_fit(data):
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
 
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_2_year.csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_no_scaling_{datetime.date.today()}.csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)
@@ -324,14 +379,53 @@ if __name__=="__main__":
     # not using the decomp
     decomposition = False
     sweep_no_exo = True
+    bc_pics = False
 
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
-    data = get_data_normalised(data_folder)
+    data = get_data(data_folder)
+    #reduce peaks in capacity KW->MW.
+    data["pv_capacity"]= data["pv_capacity"]/1000
 
+    if bc_pics:
 
-    # due to memory limitations will drop all the exogenous variables for the initial sweep;
+        start = datetime.datetime(2018, 1, 1)
+        end = start + datetime.timedelta(days=70)
+        mask_train = (data.index >= start) & (data.index < end)
+
+        bcl = boxcox_lambda(data["total_demand"][mask_train], method="loglik")
+
+        data_to_plot = data["total_demand"][mask_train]
+
+        data_to_plot_auto = boxcox(data_to_plot.values, bcl)
+        data_to_plot_log = boxcox(data_to_plot.values, 0)
+
+        fig, ax = plt.subplots(1, 2, figsize=(12,8))
+
+        qqplot(data_to_plot, marker="o", color=demand_cols["all"], line="s", markerfacecolor=demand_cols["all"],
+              markeredgecolor=demand_cols["all"], ax=ax[0])
+
+        qqplot(data_to_plot_auto, marker="o", color=demand_cols["all"], line="s", markerfacecolor=demand_cols["all"],
+               markeredgecolor=demand_cols["all"], ax=ax[1])
+
+        ax[0].grid(True, axis='y', linestyle='--', alpha=0.5)
+        ax[0].lines[1].set_color('black')
+        ax[0].lines[1].set_linewidth(2)
+        ax[0].title.set_text("Total Demand (Testing Data, Original)")
+
+        ax[1].grid(True, axis='y', linestyle='--', alpha=0.5)
+        ax[1].lines[1].set_color('black')
+        ax[1].lines[1].set_linewidth(2)
+        ax[1].set_title(f"Total Demand (Testing Data, Transformed Box-Cox ($\\lambda = {bcl:.3f}$))")
+
+        plt.savefig(root_folder / "figures" /"qq_plot_masked_bc_transform_together.png")
+
+        from scipy.stats import skew, kurtosis
+
+        print(skew(data_to_plot), skew(data_to_plot_auto))
+        print(kurtosis(data_to_plot), kurtosis(data_to_plot_auto))
+
     if sweep_no_exo:
         run_auto_fit(data)
 

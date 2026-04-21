@@ -2,18 +2,15 @@
 Sliding window for the SARIMAX model using the previously determined parameter values
 """
 from pathlib import Path
-import pandas as pd
-from fontTools.varLib.instancer.names import ELIDABLE_AXIS_VALUE_NAME
 from matplotlib import pyplot as plt
 from sklearn.metrics import mean_absolute_percentage_error, r2_score, mean_squared_error, mean_absolute_error
 import datetime
-from statsforecast.models import AutoARIMA, ARIMA
+from statsforecast.models import ARIMA
 from statsforecast import StatsForecast
 import pandas as pd
-from fitting import get_data_normalised, get_stats
+from fitting import get_data
 import numpy as np
 from multiprocessing import Pool, freeze_support
-import itertools
 
 def run_date_section(data, start, training_window, evaluation_window, using_exog=True):
 
@@ -28,7 +25,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     testing_set = data[mask_test]
     training_set = data[mask_train]
     # build the ARIMA model
-    model = ARIMA(order=(1, 0, 4), seasonal_order=(3, 1, 0), season_length=48)
+    model = ARIMA(order=(1, 0, 5), seasonal_order=(3, 1, 0), season_length=48)
 
     if using_exog:
         training_exog = training_set.drop(["total_demand"], axis=1)
@@ -75,10 +72,11 @@ if __name__=="__main__":
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
-    data = get_data_normalised(data_folder)
+    data = get_data(data_folder)
+    data["pv_capacity"] = data["pv_capacity"]/1000
 
     plot = False
-    using_exog = True
+    using_exog = False
 
     # number of days to slide forward
     step = 1
@@ -99,7 +97,7 @@ if __name__=="__main__":
 
     df = pd.DataFrame(results)
     df.sort_values(by="eval_date", inplace=True)
-    df.to_csv(root_folder / "python" / "SARIMAX" / f"results_window_{datetime.date.today()}_with_exog.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_noexog.csv")
 
     exit()
 

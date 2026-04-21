@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 import matplotlib as mpl
-from sympy import public
-
+import python.colour_dict as cd
 from public_holidays import get_holidays
 
 
@@ -47,7 +46,7 @@ def determine_lags(data, left, right, max_lags=48, top_n=5):
 
     return lags_limited[idx[:top_n]]
 
-def triplot(dataframe, location_to_save, filler=False):
+def triplot(dataframe, location_to_save, filler=False, _title=None):
     """
     Function to generate a triplot chart, with Power on the right and Temperature and solar on the left.
     Separate axis for all three so that we can visualise behaviour
@@ -65,44 +64,46 @@ def triplot(dataframe, location_to_save, filler=False):
 
     fig, ax1 = plt.subplots()
     # First axis (Demand)
-    sns.lineplot(data=dataframe, x="hour_of_day", y="total_demand", ax=ax1, color="blue")
+    sns.lineplot(data=dataframe, x="hour_of_day", y="total_demand", ax=ax1, color=cd.demand_cols["all"])
 
     if filler:
-        sns.lineplot(data=mean+std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
-        ax = sns.lineplot(data=mean-std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
+        sns.lineplot(data=mean+std, x="time_hours", y="total_demand", ax=ax1, color=cd.demand_cols["all"], alpha=0.3)
+        ax = sns.lineplot(data=mean-std, x="time_hours", y="total_demand", ax=ax1, color=cd.demand_cols["all"], alpha=0.3)
         lines = ax.get_lines()
-        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='blue', alpha=0.1)
+        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["all"], alpha=0.1)
 
-    ax1.set_ylabel("Power", color="blue")
+    ax1.set_ylabel("Power Demand (MW)", color=cd.demand_cols["all"])
+    ax1.set_xlabel("Hour of Day")
 
     # Second axis (Temp)
     ax2 = ax1.twinx()
-    sns.lineplot(data=dataframe, x="hour_of_day", y="temperature", ax=ax2, color="red")
+    sns.lineplot(data=dataframe, x="hour_of_day", y="temperature", ax=ax2, color=cd.demand_cols["var3"])
 
     if filler:
-        sns.lineplot(data=mean+std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
-        ax = sns.lineplot(data=mean-std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
+        sns.lineplot(data=mean+std, x="time_hours", y="temperature", ax=ax2, color=cd.demand_cols["var3"], alpha=0.3)
+        ax = sns.lineplot(data=mean-std, x="time_hours", y="temperature", ax=ax2, color=cd.demand_cols["var3"], alpha=0.3)
         lines = ax.get_lines()
-        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='red', alpha=0.1)
+        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["var3"], alpha=0.1)
 
-    ax2.set_ylabel("Temperature", color="red")
+    ax2.set_ylabel(cd.var_dict_peak["temperature"], color=cd.demand_cols["var3"])
 
     # Third axis (Solar Power)
     ax3 = ax1.twinx()
     ax3.spines["right"].set_position(("outward", 60))
-    sns.lineplot(data=dataframe, x="hour_of_day", y="solar_power", ax=ax3, color="orange")
+    sns.lineplot(data=dataframe, x="hour_of_day", y="solar_power", ax=ax3, color=cd.demand_cols["var4"])
 
     if filler:
-        sns.lineplot(data=mean+std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
-        ax = sns.lineplot(data=mean-std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
+        sns.lineplot(data=mean+std, x="time_hours", y="solar_power", ax=ax3, color=cd.demand_cols["var4"], alpha=0.3)
+        ax = sns.lineplot(data=mean-std, x="time_hours", y="solar_power", ax=ax3, color=cd.demand_cols["var4"], alpha=0.3)
         lines = ax.get_lines()
-        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='orange', alpha=0.1)
+        plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["var4"], alpha=0.1)
 
-    ax3.set_ylabel("Solar Power", color="orange")
+    ax3.set_ylabel(cd.var_dict_peak["solar_power"], color=cd.demand_cols["var4"])
+
+    if _title is not None:
+        plt.title(_title, color="black")
 
     plt.xticks(rotation=45)
-    plt.tight_layout()
-
     plt.tight_layout()
 
 
@@ -145,19 +146,37 @@ day_colors = {
     'Sunday': 'tab:pink'
 }
 
-plt.figure(figsize=(10, 6))
-for day in days_order:
-    temp_df = day_group.get_group(day)
-    temp_ = temp_df.groupby("hour_of_day")["total_demand"].mean()
-    plt.plot(temp_.index, temp_.values, color=day_colors[day], marker='o', label=day)
 
-plt.xlabel("Hour of Day")
-plt.ylabel("Average Demand")
-plt.tight_layout()
-plt.savefig(root_folder / "figures" / "day_by_day_stacked.png")
+data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data[
+        "datetime"].dt.dayofweek * 24
+
+fig, ax1 = plt.subplots()
+data.groupby("hour_of_week")["total_demand"].mean().plot(color=cd.demand_cols["all"])
+(data.groupby("hour_of_week")["total_demand"].std() + data.groupby("hour_of_week")["total_demand"].mean()).plot(
+    alpha=0.1, color=cd.demand_cols["all"])
+(data.groupby("hour_of_week")["total_demand"].mean()- data.groupby("hour_of_week")["total_demand"].std()).plot(
+    alpha=0.1, color=cd.demand_cols["all"])
+lines = ax1.get_lines()
+plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["all"], alpha=0.1)
+ax1.set_xlabel("Hour of the Week")
+ax1.set_ylabel("Power Demand (MW)")
+plt.savefig(root_folder / "figures" / "daily_mean_week_std.png")
+
 
 
 if False:
+
+    plt.figure(figsize=(10, 6))
+    for day in days_order:
+        temp_df = day_group.get_group(day)
+        temp_ = temp_df.groupby("hour_of_day")["total_demand"].mean()
+        plt.plot(temp_.index, temp_.values, color=day_colors[day], marker='o', label=day)
+
+    plt.xlabel("Hour of Day")
+    plt.ylabel("Average Demand")
+    plt.tight_layout()
+    plt.savefig(root_folder / "figures" / "day_by_day_stacked.png")
+
 
     holidays = []
 
@@ -209,29 +228,31 @@ if False:
 
     plt.savefig(root_folder / "figures" / "daily_mean_week_std.png")
 
-
     winter_solstice = 172
     spring_equinox = 264
     summer_solstice = 355
     autumn_equinox = 81
 
-    winter_data = data[
+    winter_data = data.drop(columns=["day", "date"], inplace=False)[
         (winter_solstice - 14 < data["day_of_the_year"]) & (winter_solstice + 14 > data["day_of_the_year"])].groupby(
         "hour_of_day").mean()
-    spring_data = data[
+    spring_data = data.drop(columns=["day", "date"], inplace=False)[
         (spring_equinox - 14 < data["day_of_the_year"]) & (spring_equinox + 14 > data["day_of_the_year"])].groupby(
         "hour_of_day").mean()
-    summer_data = data[
+    summer_data = data.drop(columns=["day", "date"], inplace=False)[
         (summer_solstice - 14 < data["day_of_the_year"]) & (summer_solstice + 14 > data["day_of_the_year"])].groupby(
         "hour_of_day").mean()
-    autumn_data = data[
+    autumn_data = data.drop(columns=["day", "date"], inplace=False)[
         (autumn_equinox - 14 < data["day_of_the_year"]) & (autumn_equinox + 14 > data["day_of_the_year"])].groupby(
         "hour_of_day").mean()
 
-    triplot(winter_data, root_folder / "figures" / "winter_solstice.png")
-    triplot(summer_data, root_folder / "figures" / "summer_solstice.png")
-    triplot(spring_data, root_folder / "figures" / "spring_equinox.png")
-    triplot(autumn_data, root_folder / "figures" / "autumn_equinox.png")
+    mean_daily = data.drop(columns=["day", "date"], inplace=False).groupby("hour_of_day").mean()
+
+    triplot(winter_data, root_folder / "figures" / "winter_solstice.png", _title="Winter Solstice")
+    triplot(summer_data, root_folder / "figures" / "summer_solstice.png", _title="Summer Solstice")
+    triplot(spring_data, root_folder / "figures" / "spring_equinox.png", _title="Spring Equinox")
+    triplot(autumn_data, root_folder / "figures" / "autumn_equinox.png", _title="Autumn Equinox")
+    triplot(mean_daily, root_folder / "figures" / "mean_daily.png", _title="Mean Daily")
 
     # pivot table for the plotting
     heatmap_data = data.pivot_table(index='day', columns='hour', values='total_demand', aggfunc='mean')

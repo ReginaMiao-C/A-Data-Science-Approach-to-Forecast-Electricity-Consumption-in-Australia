@@ -17,10 +17,9 @@ from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.seasonal import STL
 
 from statsforecast.models import AutoARIMA, ARIMA
-from statsforecast import StatsForecast
 
 from python.public_holidays import get_holidays
-
+from fitting import get_data
 
 def fourier_series(dates, period, K, t0):
     """
@@ -190,63 +189,60 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     mask_train = (data.index >= start) & (data.index < end)
     mask_test = (data.index >= end) & (data.index < eval_end)
 
-    training_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_train].index,
-                                 "y": data[mask_train]["total_demand"].values})
-    if using_exog:
+    training_set = data[mask_train]
+    testing_set = data[mask_test]
 
-        training_exog = data[mask_train].drop(["total_demand"], axis=1)
-        training_set = training_set.merge(data[mask_train].drop(["total_demand"], axis=1), left_on="ds",
-                                          right_index=True, how="left")
+    results = []
 
+    for i,j,k,l in itertools.product([0,1,2], [0,1,2], [0,1,2], [0,1, 2]):
 
-        testing_set = data[mask_test]
-        testing_set = testing_set.drop(["total_demand"], axis=1)
-        testing_set["unique_id"] = "total_demand"
-        testing_set["ds"] = testing_set.index
-    else:
-        testing_set = pd.DataFrame({"unique_id": "total_demand", "ds": data[mask_test].index})
+        model = ARIMA(order=(i, 0, j), seasonal_order=(k, 0, l), season_length=48)
 
-    model = ARIMA(order=(3, 1, 2), seasonal_order=(1, 0, 0), season_length=48)
+        if using_exog:
+            model.fit(training_set["total_demand"], training_set.drop(columns=["total_demand"], axis=1).to_numpy())
+            forecast_sf = model.predict(h=testing_set.shape[0],
+                                        X=testing_set.drop(columns=["total_demand"], axis=1).to_numpy(),
+                                        level=[95])
+        else:
+            model.fit(training_set["total_demand"])
+            forecast_sf = model.predict(h=testing_set.shape[0],
+                                        level=[95])
 
-    # Forecast for the out-of-bag testing, include transform back to real space (from log).
-    if using_exog:
-        testing_exog =  data[mask_test].drop(["total_demand"], axis=1)
-        model.fit(y=training_set.y, X=training_exog.to_numpy())
-        prediction = model.predict(h=48, level=[95], X=testing_exog.to_numpy())
-    else:
-        model.fit(y=training_set.y)
-        prediction = model.predict(h=48, level=[95])
+        # Unpack the model information.
+        fitted = model.model_
+        order = fitted['arma']  # (p, q, P, Q, s, d, D)
+        arima_order = (order[0], order[5], order[1])
+        seasonal_order = (order[2], order[6], order[3], order[4])
+        aic = fitted['aicc']
+        loglik = fitted['loglik']
+        coefs = fitted['coef']
 
-    # Unpack the model information.
-    fitted = model.model_
-    order = fitted['arma']  # (p, q, P, Q, s, d, D)
-    arima_order = (order[0], order[5], order[1])
-    seasonal_order = (order[2], order[6], order[3], order[4])
-    aic = fitted['aic']
-    loglik = fitted['loglik']
-    coefs = fitted['coef']
-
-    print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
-    print(f"  AIC    : {aic:.4f}")
+        print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
+        print(f"  AIC    : {aic:.4f}")
 
 
-    actuals = np.exp(data[mask_test]["total_demand"].values)
-    forecast = np.exp(prediction["mean"])
+        actuals = data[mask_test]["total_demand"].values
+        forecast = forecast_sf["mean"]
+        # calculate some values for the assessment of the model accuracy.
+        mse = np.mean((actuals - forecast) ** 2)
 
-    # calculate some values for the assessment of the model accuracy.
-    mse = np.mean((actuals - forecast) ** 2)
-    mape = mean_absolute_percentage_error(actuals, forecast)
+        try:
+            mape = mean_absolute_percentage_error(actuals, forecast)
+        except Exception as e:
+            mape = np.nan
 
-    print(f"\n  MSE    : {mse:.4f}")
-    print(f"  MAPE   : {mape:.4%}")
+        print(f"\n  MSE    : {mse:.4f}")
+        print(f"  MAPE   : {mape:.4%}")
 
-    # pack data for later analysis:
-    results =  {"year": start.year, "month": start.month,
-                    "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
-                    "arima_order": arima_order, "seasonal_order": seasonal_order,
-                    "aic": aic, "loglik": loglik,
-                    "coefs": coefs,
-                    "mse_oob": mse, "mape_oob": mape}
+        # pack data for later analysis:
+        result =  {"year": start.year, "month": start.month,
+                        "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
+                        "arima_order": arima_order, "seasonal_order": seasonal_order,
+                        "aic": aic, "loglik": loglik,
+                        "coefs": coefs,
+                        "mse_oob": mse, "mape_oob": mape}
+
+        results.append(result)
 
     return results
 
@@ -254,12 +250,13 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
 def run_auto_fit(data):
 
-    years = [2019]
-    months = [1]
+
+    years = [2017, 2018]
+    months = [1, 3, 6, 9]
 
     # set the strides etc in days so we can use the index.
-    training_window = 365
-    evaluation_window = 1
+    training_window = 1
+    evaluation_window = 7*8
 
     start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
     func_args = [(data, start, training_window, evaluation_window, True) for start in start_dates]
@@ -271,19 +268,18 @@ def run_auto_fit(data):
     with Pool(8) as pool:
         results = pool.starmap(run_date_section, func_args)
 
+    results = [item for sublist in results for item in sublist]
+
     df = pd.DataFrame(results)
     df.sort_values(by=["year", "month"], inplace=True)
     coef_df = df["coefs"].apply(pd.Series)
     coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
-    """
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel.csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel_new_9.csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)
-        
-    """
 
 
 
@@ -299,8 +295,9 @@ if __name__=="__main__":
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
-    data = get_data_normalised(data_folder)
-
+    data = get_data(data_folder)
+    # reduce peaks in capacity KW->MW.
+    data["pv_capacity"] = data["pv_capacity"] / 1000
 
     # due to memory limitations will drop all the exogenous variables for the initial sweep;
     if sweep_no_exo:

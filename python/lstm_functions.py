@@ -90,7 +90,7 @@ def initialise_model(df):
     return x, y, criterion_mse, criterion_mae, optimizer, model
 
 
-def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model):
+def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model, train_pass=True):
     """
     train LSTM on 70 days of data before desired validation point
     val_y_start: idx position of first validation datapoint (12am)
@@ -115,15 +115,16 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
     y_train_scaled = torch.tensor(y_train_scaled, dtype=torch.float32)
 
     #train
-    model.train()
-    for e in range(50):
-        output = model(x_train_scaled) 
-        mse_loss = criterion_mse(output, y_train_scaled)
-        mae_loss = criterion_mae(output, y_train_scaled)
-        loss = 0.5 * mse_loss + 0.5 * mae_loss
-        optimizer.zero_grad() # reset gradients
-        loss.backward() # computes loss gradients
-        optimizer.step()
+    if train_pass:
+        model.train()
+        for e in range(50):
+            output = model(x_train_scaled) 
+            mse_loss = criterion_mse(output, y_train_scaled)
+            mae_loss = criterion_mae(output, y_train_scaled)
+            loss = 0.5 * mse_loss + 0.5 * mae_loss
+            optimizer.zero_grad() # reset gradients
+            loss.backward() # computes loss gradients
+            optimizer.step()
 
 
     return scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train
@@ -181,7 +182,7 @@ def calculate_metrics(y_pred, y_train_pred, day, y_val, y_train, results):
 
     return results
 
-def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, days_between_val = 1):
+def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, days_between_val = 1, retrain=True):
     """
      repeats sliding window calculations for multiple validation days and returns metrics
      initial_val_y_start: first validation day idx
@@ -196,7 +197,13 @@ def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, d
     *model_info, model = initialise_model(df)
     for r in range(num_repeats):
         val_y_start = initial_val_y_start + (window_slide*r)
-        *train_info, model, y_train = train_lstm(val_y_start, *model_info, model)
+        if retrain:
+            *train_info, model, y_train = train_lstm(val_y_start, *model_info, model)
+        else:
+            if r == 0:
+                *train_info, model, y_train = train_lstm(val_y_start, *model_info, model)
+            else:
+                *train_info, model, y_train = train_lstm(val_y_start, *model_info, model, False)
         val_results = validate_lstm(*train_info, model, df_datetime)
         results = calculate_metrics(*val_results, y_train, results)
 
@@ -209,7 +216,6 @@ def display_metrics(results, save=False, file_path='', file_name=''):
     file_path: folder to save csv file
     file_name: name of csv file
     """
-    print(results.head())
     print('Avg Train MSE: ', results['Total Train MSE'].mean())
     print('Avg Train MAE: ', results['Total Train MAE'].mean())
     print('Avg Train MAPE: ', results['Total Train MAPE'].mean())

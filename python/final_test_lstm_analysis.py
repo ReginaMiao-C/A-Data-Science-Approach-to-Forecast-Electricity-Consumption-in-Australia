@@ -14,8 +14,8 @@ import matplotlib.dates as mdates
 
 def process_dfs(df, aemo_df, df_format='%Y-%m-%d'):
     df['date'] = pd.to_datetime(df['date'], format=df_format)
-    df['true_peak_time'] = pd.to_datetime(df['true_peak_time'], format='%H:%M:%S')
-    df['pred_peak_time'] = pd.to_datetime(df['pred_peak_time'], format='%H:%M:%S')
+    df['true_peak_time'] = pd.to_datetime(df['true_peak_time'])
+    df['pred_peak_time'] = pd.to_datetime(df['pred_peak_time'])
 
     aemo_df['datetime'] = pd.to_datetime(aemo_df['datetime'])
     aemo_df['time'] = aemo_df['datetime'].dt.time
@@ -45,7 +45,7 @@ def plot_results(df, res_path, model_name):
     axs[1].grid(axis='x', linestyle='--', color='lightgrey', zorder=1, which='both')
     axs[0].set_xlabel('')
     axs[1].set_xlabel('Date')
-    axs[0].set_ylabel('Peak Power (MW)')
+    axs[0].set_ylabel('Peak Electricity Demand (MW)')
     axs[1].set_ylabel('Residuals (MW)')
     img_name = 'pred_vs_actual_' + model_name
     plt.savefig(res_path / img_name)
@@ -85,9 +85,9 @@ def plot_resids(df, res_path, model_name):
     sns.scatterplot(df_diff, x='date', y='differences', color='sienna', ax=axs[1], alpha=0.7)
 
     df = df.rename(columns={'pred_resid': 'LSTM', 'aemo_resid': 'AEMO'})
-    df = df.melt(id_vars='date', value_vars=['LSTM', 'AEMO'], var_name='Prediction', value_name='Peak Power')
+    df = df.melt(id_vars='date', value_vars=['LSTM', 'AEMO'], var_name='Prediction', value_name='Peak Electricity Demand')
     pred_colors = {'LSTM':'brown', 'AEMO':'salmon'}
-    sns.lineplot(df, x='date', y='Peak Power', hue='Prediction', palette=pred_colors, ax=axs[0])
+    sns.lineplot(df, x='date', y='Peak Electricity Demand', hue='Prediction', palette=pred_colors, ax=axs[0])
     axs[0].axhline(0, color='grey', linestyle=':', zorder=1) 
     axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
     axs[0].set_ylabel('Residuals (MW)')
@@ -115,33 +115,13 @@ csv_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Test'
 save_path = csv_path
 
 
-df_all = pd.read_csv(csv_path / 'all_final.csv')
+# best final model
+csv_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'
+save_path = csv_path
 
+df = pd.read_csv(csv_path / 'dropped_8_test.csv')
 forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
-df_all, resid_df = process_dfs(df_all, forecast_demand_df)
-
-plot_results(df_all, save_path, 'final')
-
-plot_resids(resid_df, save_path, 'final')
-
-"""
-
-csv_path = root_folder / 'Results' / 'LSTM' / 'Final'
-save_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'HP Tune'
-save_path.mkdir(parents=True,exist_ok=True)
-
-
-df_m4 = pd.read_csv(csv_path / 'm4.csv')
-df_m2 = pd.read_csv(csv_path / 'm2.csv')
-forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
-
-
-df_m4, resid_df_4 = process_dfs(df_m4, forecast_demand_df)
-plot_results(df_m4, save_path, 'm4')
-plot_resids(resid_df_4, save_path, 'm4')
-
-
-df_m2, resid_df_2 = process_dfs(df_m2, forecast_demand_df)
-plot_results(df_m2, save_path, 'm2')
-plot_resids(resid_df_2, save_path, 'm2')"""
+df, resid_df = process_dfs(df, forecast_demand_df)
+plot_results(df, save_path, '8_test')
+plot_resids(resid_df, save_path, '8_test')

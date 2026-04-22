@@ -32,8 +32,8 @@ def corr_matrix (df, peak_df, img_folder):
     fig, axs = plt.subplots(1, 2, figsize=(11,6))
     sns.heatmap(cm, annot=True, cmap='coolwarm', vmin=-1, vmax=1, ax=axs[0], cbar=False, xticklabels=var_labels, yticklabels=var_labels)
     sns.heatmap(peak_cm, annot=True, cmap='coolwarm', vmin=-1, vmax=1, ax=axs[1], cbar=False, xticklabels=var_labels)
-    axs[0].set_title('All Demand')
-    axs[1].set_title('Peak Demand')
+    axs[0].set_title('Electricity Demand')
+    axs[1].set_title('Peak Electricity Demand')
     axs[1].tick_params(axis='y', labelleft=False)
     axs[0].tick_params(axis='y', rotation=0)
     plt.suptitle('Correlation Between Variables')
@@ -58,8 +58,8 @@ def var_distributions(df, peak_df, img_folder):
         axs[0][col_idx].set_title(col)
         axs[0][col_idx].set_ylabel('')
         axs[1][col_idx].set_ylabel('')
-    fig.text(0.01, 0.68, 'All Demand', va='center', rotation=90, fontsize=12)
-    fig.text(0.01, 0.23, 'Peak Demand', va='center', rotation=90, fontsize=12)
+    fig.text(0.01, 0.68, 'Electricity Demand', va='center', rotation=90, fontsize=12)
+    fig.text(0.01, 0.23, 'Peak Electricity Demand', va='center', rotation=90, fontsize=12)
     plt.suptitle('Variable Distributions')
     plt.tight_layout()
     fig.subplots_adjust(left=0.06) 
@@ -82,7 +82,7 @@ def var_distributions(df, peak_df, img_folder):
         axs[0].set_xlabel(total_labels[col])
         axs[1].set_xlabel(total_labels[col])
         axs[0].set_title('Total Power')
-        axs[1].set_title('Peak Daily Power')
+        axs[1].set_title('Peak Electricity Demand')
         img_name = col + '_histograms'
         plt.savefig(img_folder / img_name)
         plt.close()
@@ -98,8 +98,8 @@ def var_distributions(df, peak_df, img_folder):
         axs[1].tick_params(axis='y', which='both', left=False, labelleft=False)
         axs[0].set_ylabel(total_labels[col])
         axs[1].set_ylabel('')
-        axs[0].set_title('Total Power')
-        axs[1].set_title('Peak Daily Power')
+        axs[0].set_title('Electricity Demand')
+        axs[1].set_title('Peak Electricity Demand')
         img_name = col + '_boxplot'
         plt.savefig(img_folder / img_name)
         plt.close()
@@ -109,7 +109,7 @@ def var_distributions(df, peak_df, img_folder):
     sns.histplot(peak_df, x='hour_float', bins=48, color=vc['peak'])
     plt.xticks(range(0, 24, 1))  # show every 2 hours
     plt.xlabel('Hour')
-    plt.title('Time Frequency of Peak Daily Demand')
+    plt.title('Time Frequency of Peak Electricity Demand')
     plt.savefig(img_folder / 'peak_demand_time_histogram')
     plt.close()
 
@@ -123,7 +123,7 @@ def demand_time(df, img_folder):
     sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None, color='palevioletred')
     for l in jan_1:
         plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
-    plt.title('Peak Demand')
+    plt.title('Peak Electricity Demand')
     plt.savefig(img_folder / 'peak_demand_time')
     plt.close()
 
@@ -180,8 +180,8 @@ def daily_stats(df, peak_df, img_folder):
     col_list = df.columns.tolist()[1:6]
     for col in col_list:
         fig, ax = plt.subplots(2, 1, figsize=(8,6))
-        avg_stats_across_years(df, col, ax[0], 'All Demand')
-        avg_stats_across_years(peak_df, col, ax[1], 'Peak Demand', True)
+        avg_stats_across_years(df, col, ax[0], 'Electricity Demand')
+        avg_stats_across_years(peak_df, col, ax[1], 'Peak Electricity Demand', True)
 
         handles, labels = ax[0].get_legend_handles_labels()
         for axs in ax.flat:
@@ -252,18 +252,18 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 # explore relationships between variables
 scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison', vc['all'])
 scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison', vc['peak'])
-#corr_matrix (demand_df, peak_demand_df, img_folder)
+corr_matrix (demand_df, peak_demand_df, img_folder)
 
 # explore variable distributions
-#var_distributions(demand_df, peak_demand_df, img_folder)
+var_distributions(demand_df, peak_demand_df, img_folder)
 
 # explore temporal distributions
-#demand_time(peak_demand_df, img_folder)
-#demand_time_all(demand_df, peak_demand_df, img_folder)
-#daily_stats(demand_df, peak_demand_df, img_folder)
+demand_time(peak_demand_df, img_folder)
+demand_time_all(demand_df, peak_demand_df, img_folder)
+daily_stats(demand_df, peak_demand_df, img_folder)
 
 # plot AEMO forecast distributions
-#aemo_forecast(forecast_demand_df, img_folder)
+aemo_forecast(forecast_demand_df, img_folder)
 
 
 

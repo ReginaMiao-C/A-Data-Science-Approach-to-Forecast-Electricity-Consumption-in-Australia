@@ -5,11 +5,11 @@ from pathlib import Path
 from matplotlib import pyplot as plt
 from statsforecast.models import AutoARIMA, ARIMA
 from statsforecast import StatsForecast
-from sympy import false
+from statsmodels.tsa.stattools import kpss
 
-from fitting import get_stats, get_data_normalised
+from fitting import get_stats, get_data_normalised, get_data
 import pandas as pd
-import numpy as np
+from coreforecast.scalers import boxcox, inv_boxcox, boxcox_lambda
 
 if __name__=="__main__":
 
@@ -17,12 +17,38 @@ if __name__=="__main__":
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
-    data = get_data_normalised(data_folder)
+    #data = get_data_normalised(data_folder)
+    data = get_data(data_folder)
+
+    #l_bc = boxcox_lambda(data["total_demand"].values, season_length=48, method='loglik', lower=-10)
+    #data["total_demand"] = boxcox(data["total_demand"], lmbda=0)
+
+    import statsmodels.api as sm
+
+    #sm.qqplot(data["total_demand"], line='s')  # 's' = standardised reference line
+    #plt.show()
+
+    print(data["total_demand"].value_counts().head(10))
+
+    l_bc = boxcox_lambda(data["total_demand"].values, season_length=48, method='guerrero', lower=-10)
+    data["total_demand"] = boxcox(data["total_demand"], lmbda=0)
+
+    s=48
+    log_y_sdiff = data["total_demand"][s:].values - data["total_demand"][:-s].values
+    print(kpss(log_y_sdiff))
+
+    plt.hist(data["total_demand"], bins=100)
+    plt.show()
+
+    sefsef
+
+    #plt.plot(data["total_demand"])
+    #plt.show()
 
     #data.drop(columns=['weekends', "holidays", "sin_336_1", "cos_336_1"], inplace=True)
 
     years = [2019]
-    months = [3,6,9,12,24,36]
+    months = [12]
 
     p_values = {}
 
@@ -48,7 +74,7 @@ if __name__=="__main__":
         test_set = data[mask_test]["total_demand"]
         test_exog = data[mask_test].drop("total_demand", axis=1)
 
-        model = ARIMA(order=(2, 1, 0), seasonal_order=(1, 0, 0), season_length=48)
+        model = ARIMA(order=(0, 0, 0), seasonal_order=(0, 1, 0), season_length=48)
 
         # Forecast for the out-of-bag testing, include transform back to real space (from log).
         model.fit(y=train_set.values, X=train_exog.to_numpy())
@@ -86,10 +112,10 @@ if __name__=="__main__":
         df = get_stats(model, train_exog.columns, _print=True)
         #p_values[f"{month}"] = df["p_value"]
 
-    results = pd.DataFrame.from_dict(p_values, orient='index')
-    results.columns = df["label"]
+    #results = pd.DataFrame.from_dict(p_values, orient='index')
+    #results.columns = df["label"]
 
-    col_order = results.max().sort_values(ascending=False).index
-    results = results[col_order]
+    #col_order = results.max().sort_values(ascending=False).index
+    #results = results[col_order]
 
-    print(results)
+    #print(results)

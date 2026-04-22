@@ -1,3 +1,5 @@
+import shap
+import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
 import torch
@@ -239,6 +241,148 @@ def display_metrics(results, save=False, file_path='', file_name='', display=Tru
     if save:
         results = results.rename(columns={'total_demand': 'true_demand', 'pred_power': 'lstm_pred_demand'})
         results.to_csv(file_path / file_name)
+
+
+# wrap model to explain predicted daily peak only
+class PeakModel(nn.Module):
+    def __init__(self, base_model):
+        """
+        base_model: trained LSTM model that outputs 48 half-hour predictions
+        """
+        super(PeakModel, self).__init__()
+        self.base_model = base_model
+
+    def forward(self, x):
+        out = self.base_model(x)
+        peak_out, _ = torch.max(out, dim=1, keepdim=True)
+        return peak_out
+
+
+def average_shap_training_windows(df, initial_val_y_start, num_repeats, days_between_val=1,
+                                  retrain=True, max_background=10, save=False,
+                                  file_path='', file_name_prefix='lstm_shap'):
+    """
+    calculate SHAP values averaged across rolling training windows
+
+    df: preprocessed dataframe with target and feature variables
+    initial_val_y_start: first validation day idx
+    num_repeats: number of rolling windows
+    days_between_val: number of days between windows
+    retrain: if True, continue retraining model each window as in repeat_windows
+    max_background: number of windows used as SHAP background data
+    save: save csv and plots
+    file_path: folder to save outputs
+    file_name_prefix: prefix for saved files
+    """
+
+    window_slide = 48 * days_between_val
+    if initial_val_y_start + (window_slide * (num_repeats - 1)) > len(df) - 48:
+        print('Error: Validation range cannot exceed ', len(df) - 48)
+        print('Current upper validation limit: ', initial_val_y_start + (window_slide * (num_repeats - 1)))
+        sys.exit()
+
+    # initialise model and separate x/y data
+    x, y, criterion_mse, criterion_mae, optimizer, model = initialise_model(df)
+    feature_names = list(x.columns)
+
+    # store scaled training windows and trained model weights
+    train_windows = []
+    model_states = []
+
+    for r in range(num_repeats):
+        val_y_start = initial_val_y_start + (window_slide * r)
+
+        if retrain:
+            scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train = train_lstm(
+                val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
+            )
+        else:
+            if r == 0:
+                scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train = train_lstm(
+                    val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
+                )
+            else:
+                scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train = train_lstm(
+                    val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model, False
+                )
+
+        train_windows.append(x_train_scaled.detach().clone())
+        model_states.append({k: v.detach().cpu().clone() for k, v in model.state_dict().items()})
+
+    # use first few training windows as SHAP background data
+    background_data = torch.cat(train_windows[:max_background], dim=0)
+
+    # store aggregated SHAP values and aggregated feature values
+    shap_feature_matrix = []
+    x_feature_matrix = []
+
+    for i in range(len(train_windows)):
+        # reload trained model for this window
+        temp_model = LSTMmodel(input_size=x.shape[1], hidden_size=32, num_layers=2, dropout=0)
+        temp_model.load_state_dict(model_states[i])
+        temp_model.eval()
+
+        peak_model = PeakModel(temp_model)
+        explain_data = train_windows[i]
+
+        # create SHAP explainer and calculate values
+        explainer = shap.GradientExplainer(peak_model, background_data)
+        shap_values = explainer.shap_values(explain_data)
+
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]
+
+        if torch.is_tensor(shap_values):
+            shap_values = shap_values.detach().cpu().numpy()
+
+        explain_data_np = explain_data.detach().cpu().numpy()
+
+        # aggregate across time steps to get feature-level importance for one window
+        shap_values_agg = np.mean(np.abs(shap_values), axis=1).squeeze(0)
+        explain_data_agg = np.mean(explain_data_np, axis=1).squeeze(0)
+
+        shap_feature_matrix.append(shap_values_agg)
+        x_feature_matrix.append(explain_data_agg)
+
+    shap_feature_matrix = np.vstack(shap_feature_matrix)
+    x_feature_matrix = np.vstack(x_feature_matrix)
+ 
+    # average SHAP values across all rolling training windows
+    shap_importance = pd.DataFrame({
+        'feature': feature_names,
+        'mean_abs_shap': shap_feature_matrix.mean(axis=0)
+    }).sort_values('mean_abs_shap', ascending=False).reset_index(drop=True)
+
+    if save:
+        shap_importance.to_csv(file_path / (file_name_prefix + '_shap_values.csv'), index=False)
+
+        # save bar plot of average SHAP values
+        plt.figure(figsize=(8, 6))
+        plt.barh(shap_importance['feature'][::-1], shap_importance['mean_abs_shap'][::-1])
+        plt.xlabel('mean(|SHAP value|)')
+        plt.ylabel('feature')
+        plt.tight_layout()
+        plt.savefig(file_path / (file_name_prefix + '_shap_bar.png'), bbox_inches='tight')
+        plt.close()
+
+        # save SHAP summary plot across all windows
+        shap.summary_plot(
+            shap_feature_matrix,
+            features=x_feature_matrix,
+            feature_names=feature_names,
+            show=False
+        )
+        plt.tight_layout()
+        plt.savefig(file_path / (file_name_prefix + '_shap_summary.png'), bbox_inches='tight')
+        plt.close()
+
+    return shap_importance
+
+
+
+
+
+
 
 
 ### EXAMPLE CODE ###

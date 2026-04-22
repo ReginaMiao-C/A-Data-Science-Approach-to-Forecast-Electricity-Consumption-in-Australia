@@ -68,13 +68,16 @@ def preprocess_30_min_data(df, holidays = True, val_data_only=True, test_data_on
     return df
     
 
-def eval_df(df):
+def eval_df(df, all_preds=False):
     """
     return copy of preprocessed data and empty dataframe for response variable evaluation
     """
     df_datetime = df.copy()
     df_datetime = df[['date', 'time', 'total_demand']]
-    results = pd.DataFrame(columns=['date', 'true_peak', 'true_peak_time', 'pred_peak', 'pred_peak_time', 'Total Train MSE', 'Total Train MAE', 'Total Train MAPE', 'Total Val MSE', 'Total Val MAE', 'Total Val MAPE', 'Peak Val MSE', 'Peak Val MAE', 'Peak Val MAPE'])
+    if not all_preds:
+        results = pd.DataFrame(columns=['date', 'true_peak', 'true_peak_time', 'pred_peak', 'pred_peak_time', 'Total Train MSE', 'Total Train MAE', 'Total Train MAPE', 'Total Val MSE', 'Total Val MAE', 'Total Val MAPE', 'Peak Val MSE', 'Peak Val MAE', 'Peak Val MAPE'])
+    else:
+        results = pd.DataFrame(columns=['date', 'time', 'total_demand', 'pred_power'])
     df = df.drop(columns=['datetime', 'time', 'date'])
     return df, df_datetime, results
 
@@ -155,35 +158,38 @@ def validate_lstm(scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, 
 
     day = df_datetime.iloc[val_y_start:val_y_end].copy().reset_index()
     day['pred_power'] = y_pred
-
     return y_pred, y_train_pred, day, y_val
 
-def calculate_metrics(y_pred, y_train_pred, day, y_val, y_train, results):
+def calculate_metrics(y_pred, y_train_pred, day, y_val, y_train, results, all_preds):
     """
     evaluate model performance for one window
     """
-    true_max = day['total_demand'].max()
-    true_max_time= day['time'].iloc[day['total_demand'].idxmax()].time()
-    pred_max = day['pred_power'].max()
-    pred_max_time = day['time'].loc[day['pred_power'].idxmax()].time()
 
-    total_train_mse = mean_squared_error(y_train, y_train_pred)
-    total_train_mae = mean_absolute_error(y_train, y_train_pred)
-    total_train_mape = mean_absolute_percentage_error(y_train, y_train_pred)
+    if not all_preds:
+        true_max = day['total_demand'].max()
+        true_max_time= day['time'].iloc[day['total_demand'].idxmax()].time()
+        pred_max = day['pred_power'].max()
+        pred_max_time = day['time'].loc[day['pred_power'].idxmax()].time()
 
-    total_val_mse = mean_squared_error(y_val, y_pred)
-    total_val_mae = mean_absolute_error(y_val, y_pred)
-    total_val_mape = mean_absolute_percentage_error(y_val, y_pred)
+        total_train_mse = mean_squared_error(y_train, y_train_pred)
+        total_train_mae = mean_absolute_error(y_train, y_train_pred)
+        total_train_mape = mean_absolute_percentage_error(y_train, y_train_pred)
 
-    peak_val_mse = mean_squared_error([true_max], [pred_max])
-    peak_val_mae = mean_absolute_error([true_max], [pred_max])
-    peak_val_mape = mean_absolute_percentage_error([true_max], [pred_max])
+        total_val_mse = mean_squared_error(y_val, y_pred)
+        total_val_mae = mean_absolute_error(y_val, y_pred)
+        total_val_mape = mean_absolute_percentage_error(y_val, y_pred)
 
-    results.loc[len(results)] = [day['date'].iloc[0], true_max, true_max_time, pred_max, pred_max_time, total_train_mse, total_train_mae, total_train_mape, total_val_mse, total_val_mae, total_val_mape, peak_val_mse, peak_val_mae, peak_val_mape]
+        peak_val_mse = mean_squared_error([true_max], [pred_max])
+        peak_val_mae = mean_absolute_error([true_max], [pred_max])
+        peak_val_mape = mean_absolute_percentage_error([true_max], [pred_max])
 
+        results.loc[len(results)] = [day['date'].iloc[0], true_max, true_max_time, pred_max, pred_max_time, total_train_mse, total_train_mae, total_train_mape, total_val_mse, total_val_mae, total_val_mape, peak_val_mse, peak_val_mae, peak_val_mape]
+    else:
+        day = day.drop(columns='index')
+        results = pd.concat([results, day], ignore_index=True)
     return results
 
-def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, days_between_val = 1, retrain=True):
+def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, days_between_val = 1, retrain=True, all_preds=False):
     """
      repeats sliding window calculations for multiple validation days and returns metrics
      initial_val_y_start: first validation day idx
@@ -206,30 +212,32 @@ def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, d
             else:
                 *train_info, model, y_train = train_lstm(val_y_start, *model_info, model, False)
         val_results = validate_lstm(*train_info, model, df_datetime)
-        results = calculate_metrics(*val_results, y_train, results)
+        results = calculate_metrics(*val_results, y_train, results, all_preds)
 
     return results
 
-def display_metrics(results, save=False, file_path='', file_name=''):
+def display_metrics(results, save=False, file_path='', file_name='', display=True):
     """
     display average metrics for all windows
     save: write all results to csv file
     file_path: folder to save csv file
     file_name: name of csv file
     """
-    print('Avg Train MSE: ', results['Total Train MSE'].mean())
-    print('Avg Train MAE: ', results['Total Train MAE'].mean())
-    print('Avg Train MAPE: ', results['Total Train MAPE'].mean())
+    if display:
+        print('Avg Train MSE: ', results['Total Train MSE'].mean())
+        print('Avg Train MAE: ', results['Total Train MAE'].mean())
+        print('Avg Train MAPE: ', results['Total Train MAPE'].mean())
 
-    print('Avg Val MSE: ', results['Total Val MSE'].mean())
-    print('Avg Val MAE: ', results['Total Val MAE'].mean())
-    print('Avg Val MAPE: ', results['Total Val MAPE'].mean())
+        print('Avg Val MSE: ', results['Total Val MSE'].mean())
+        print('Avg Val MAE: ', results['Total Val MAE'].mean())
+        print('Avg Val MAPE: ', results['Total Val MAPE'].mean())
 
-    print('Avg Peak Val MSE: ', results['Peak Val MSE'].mean())
-    print('Avg Peak Val MAE: ', results['Peak Val MAE'].mean())
-    print('Avg Peak Val MAPE: ', results['Peak Val MAPE'].mean())
+        print('Avg Peak Val MSE: ', results['Peak Val MSE'].mean())
+        print('Avg Peak Val MAE: ', results['Peak Val MAE'].mean())
+        print('Avg Peak Val MAPE: ', results['Peak Val MAPE'].mean())
 
     if save:
+        results = results.rename(columns={'total_demand': 'true_demand', 'pred_power': 'lstm_pred_demand'})
         results.to_csv(file_path / file_name)
 
 

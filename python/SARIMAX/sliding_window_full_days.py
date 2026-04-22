@@ -46,7 +46,10 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
 
     results_data = {"model": model.model_["arma"],
-                    "traing_window size": training_set.shape[0],
+                    "full_set_index": idx,
+                    "full_set_mean":forecasted_demand,
+                    "full_set_hi":forecasted_hi,
+                    "full_set_lo":forecasted_lo,
                     "using_exog": using_exog,
                     "eval_date": end,
                     "model aicc": model.model_['aicc'],
@@ -88,8 +91,8 @@ if __name__=="__main__":
     evaluation_window = 1
 
     # start the date so the first prediction is the first day of the new year.
-    start = datetime.datetime(year=2020, month=1, day=1) - datetime.timedelta(days=training_window)
-    start_dates = [start + datetime.timedelta(days=i) for i in list(range(0, 365, step))]
+    start = datetime.datetime(year=2016, month=1, day=1) - datetime.timedelta(days=training_window)
+    start_dates = [start + datetime.timedelta(days=i) for i in list(range(0, 365*5, step))]
     func_args = [(data, start, training_window, evaluation_window, using_exog) for start in start_dates]
 
     #for args in func_args:
@@ -100,7 +103,7 @@ if __name__=="__main__":
 
     df = pd.DataFrame(results)
     df.sort_values(by="eval_date", inplace=True)
-    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_{datetime.date.today()}_with_exog_all_data.csv")
 
     exit()
 

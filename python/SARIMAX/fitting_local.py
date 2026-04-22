@@ -194,53 +194,63 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     results = []
 
-    for i,j,k,l in itertools.product([0,1,2], [0,1,2], [0,1,2], [0,1, 2]):
-
-        model = ARIMA(order=(i, 0, j), seasonal_order=(k, 0, l), season_length=48)
-
-        if using_exog:
-            model.fit(training_set["total_demand"], training_set.drop(columns=["total_demand"], axis=1).to_numpy())
-            forecast_sf = model.predict(h=testing_set.shape[0],
-                                        X=testing_set.drop(columns=["total_demand"], axis=1).to_numpy(),
-                                        level=[95])
-        else:
-            model.fit(training_set["total_demand"])
-            forecast_sf = model.predict(h=testing_set.shape[0],
-                                        level=[95])
-
-        # Unpack the model information.
-        fitted = model.model_
-        order = fitted['arma']  # (p, q, P, Q, s, d, D)
-        arima_order = (order[0], order[5], order[1])
-        seasonal_order = (order[2], order[6], order[3], order[4])
-        aic = fitted['aicc']
-        loglik = fitted['loglik']
-        coefs = fitted['coef']
-
-        print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
-        print(f"  AIC    : {aic:.4f}")
-
-
-        actuals = data[mask_test]["total_demand"].values
-        forecast = forecast_sf["mean"]
-        # calculate some values for the assessment of the model accuracy.
-        mse = np.mean((actuals - forecast) ** 2)
+    for i,j,k,l in itertools.product([0,1,2], [0,1,2], [0,1,2], [0,1,2]):
 
         try:
-            mape = mean_absolute_percentage_error(actuals, forecast)
+
+            model = ARIMA(order=(i, 0, j), seasonal_order=(k, 0, l), season_length=48)
+
+            if using_exog:
+                model.fit(training_set["total_demand"], training_set.drop(columns=["total_demand"], axis=1).to_numpy())
+                forecast_sf = model.predict(h=testing_set.shape[0],
+                                            X=testing_set.drop(columns=["total_demand"], axis=1).to_numpy(),
+                                            level=[95])
+            else:
+                model.fit(training_set["total_demand"])
+                forecast_sf = model.predict(h=testing_set.shape[0],
+                                            level=[95])
+
+            # Unpack the model information.
+            fitted = model.model_
+            order = fitted['arma']  # (p, q, P, Q, s, d, D)
+            arima_order = (order[0], order[5], order[1])
+            seasonal_order = (order[2], order[6], order[3], order[4])
+            aic = fitted['aicc']
+            loglik = fitted['loglik']
+            coefs = fitted['coef']
+
+            print(f"\n  Model  : ARIMA{arima_order}{seasonal_order}")
+            print(f"  AIC    : {aic:.4f}")
+
+
+            actuals = data[mask_test]["total_demand"].values
+            forecast = forecast_sf["mean"]
+            # calculate some values for the assessment of the model accuracy.
+            mse = np.mean((actuals - forecast) ** 2)
+
+            try:
+                mape = mean_absolute_percentage_error(actuals, forecast)
+            except Exception as e:
+                mape = np.nan
+
+            print(f"\n  MSE    : {mse:.4f}")
+            print(f"  MAPE   : {mape:.4%}")
+
+            # pack data for later analysis:
+            result =  {"year": start.year, "month": start.month,
+                            "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
+                            "arima_order": arima_order, "seasonal_order": seasonal_order,
+                            "aic": aic, "loglik": loglik,
+                            "coefs": coefs,
+                            "mse_oob": mse, "mape_oob": mape}
         except Exception as e:
-            mape = np.nan
-
-        print(f"\n  MSE    : {mse:.4f}")
-        print(f"  MAPE   : {mape:.4%}")
-
-        # pack data for later analysis:
-        result =  {"year": start.year, "month": start.month,
-                        "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
-                        "arima_order": arima_order, "seasonal_order": seasonal_order,
-                        "aic": aic, "loglik": loglik,
-                        "coefs": coefs,
-                        "mse_oob": mse, "mape_oob": mape}
+            print(e)
+            result = {"year": start.year, "month": start.month,
+                      "train_start": start, "train_end": end, "train_obs": training_set.shape[0],
+                      "arima_order": (i,0,j), "seasonal_order": (k,0,l),
+                      "aic": np.nan, "loglik": np.nan,
+                      "coefs": np.nan,
+                      "mse_oob": np.nan, "mape_oob": np.nan}
 
         results.append(result)
 
@@ -255,8 +265,8 @@ def run_auto_fit(data):
     months = [1, 3, 6, 9]
 
     # set the strides etc in days so we can use the index.
-    training_window = 1
-    evaluation_window = 7*8
+    training_window = 7*8
+    evaluation_window = 1
 
     start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
     func_args = [(data, start, training_window, evaluation_window, True) for start in start_dates]
@@ -276,7 +286,7 @@ def run_auto_fit(data):
     coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel_new_9.csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel_parsweep.csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)

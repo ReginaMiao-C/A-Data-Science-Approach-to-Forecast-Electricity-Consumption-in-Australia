@@ -8,9 +8,10 @@ import datetime
 from statsforecast.models import ARIMA
 from statsforecast import StatsForecast
 import pandas as pd
-from fitting import get_data
+from fitting import get_data, get_stats
 import numpy as np
 from multiprocessing import Pool, freeze_support
+
 
 def run_date_section(data, start, training_window, evaluation_window, using_exog=True):
 
@@ -25,7 +26,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     testing_set = data[mask_test]
     training_set = data[mask_train]
     # build the ARIMA model
-    model = ARIMA(order=(2, 0, 0), seasonal_order=(0, 0, 0), season_length=48)
+    model = ARIMA(order=(1, 0, 5), seasonal_order=(3, 1, 0), season_length=48)
 
     if using_exog:
         training_exog = training_set.drop(["total_demand"], axis=1)
@@ -43,6 +44,8 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     forecasted_lo = prediction["lo-95"]
 
     print(f"{start}: {model.model_['aicc']}")
+
+    stats = get_stats(model, exog_titles=testing_set.columns, _print=False)
 
 
     results_data = {"model": model.model_["arma"],
@@ -65,7 +68,8 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
                     "mse": mean_squared_error(eval_data, forecasted_demand),
                     "r2": r2_score(eval_data, forecasted_demand),
                     "mae": mean_absolute_error(eval_data, forecasted_demand),
-                    "mape": mean_absolute_percentage_error(eval_data, forecasted_demand)}
+                    "mape": mean_absolute_percentage_error(eval_data, forecasted_demand),
+                    "stats":  stats}
 
     return results_data
 
@@ -100,7 +104,7 @@ if __name__=="__main__":
 
     df = pd.DataFrame(results)
     df.sort_values(by="eval_date", inplace=True)
-    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog_noxpars.csv")
 
     exit()
 

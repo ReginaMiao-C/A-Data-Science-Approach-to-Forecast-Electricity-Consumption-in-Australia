@@ -7,10 +7,7 @@ from pathlib import Path
 import matplotlib as mpl
 import python.colour_dict as cd
 from public_holidays import get_holidays
-
-
-
-
+import matplotlib.patches as mpatches
 
 def cross_corr(x, y):
     x = (x - np.mean(x)) / np.std(x)
@@ -146,25 +143,35 @@ day_colors = {
     'Sunday': 'tab:pink'
 }
 
+plt.figure(figsize=(12, 5))
+axs = sns.lineplot(data=data, x="day_of_the_year", y="total_demand", color=cd.demand_cols["all"], label='Power Demand')
+plt.xlabel("Day of the Year")
+plt.ylabel("Electrical Power Demand (MW)")
+for l in range(50, 400,50):
+    plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
 
-data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data[
-        "datetime"].dt.dayofweek * 24
-
-fig, ax1 = plt.subplots()
-data.groupby("hour_of_week")["total_demand"].mean().plot(color=cd.demand_cols["all"])
-(data.groupby("hour_of_week")["total_demand"].std() + data.groupby("hour_of_week")["total_demand"].mean()).plot(
-    alpha=0.1, color=cd.demand_cols["all"])
-(data.groupby("hour_of_week")["total_demand"].mean()- data.groupby("hour_of_week")["total_demand"].std()).plot(
-    alpha=0.1, color=cd.demand_cols["all"])
-lines = ax1.get_lines()
-plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["all"], alpha=0.1)
-ax1.set_xlabel("Hour of the Week")
-ax1.set_ylabel("Power Demand (MW)")
-plt.savefig(root_folder / "figures" / "daily_mean_week_std.png")
-
+dummy_patch = mpatches.Patch(color=cd.demand_cols["all"], alpha=0.2, label="95% CI")
+axs.legend(handles=[axs.lines[0], dummy_patch])
+plt.savefig(root_folder / "figures" / "daily_variation.png")
 
 
 if False:
+
+    data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data[
+        "datetime"].dt.dayofweek * 24
+
+    fig, ax1 = plt.subplots()
+    data.groupby("hour_of_week")["total_demand"].mean().plot(color=cd.demand_cols["all"])
+    (data.groupby("hour_of_week")["total_demand"].std() + data.groupby("hour_of_week")["total_demand"].mean()).plot(
+        alpha=0.1, color=cd.demand_cols["all"])
+    (data.groupby("hour_of_week")["total_demand"].mean() - data.groupby("hour_of_week")["total_demand"].std()).plot(
+        alpha=0.1, color=cd.demand_cols["all"])
+    lines = ax1.get_lines()
+    plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["all"],
+                     alpha=0.1)
+    ax1.set_xlabel("Hour of the Week")
+    ax1.set_ylabel("Power Demand (MW)")
+    plt.savefig(root_folder / "figures" / "daily_mean_week_std.png")
 
     plt.figure(figsize=(10, 6))
     for day in days_order:
@@ -211,8 +218,7 @@ if False:
     print(determine_lags(data, "total_demand", "temperature", 12))
     print(determine_lags(data, "total_demand", "solar_power", 12))
 
-    sns.lineplot(data=data, x="day_of_the_year", y="total_demand", ax=plt.gca())
-    plt.savefig(root_folder / "figures" / "daily_variation.png")
+
 
     data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data[
         "datetime"].dt.dayofweek * 24

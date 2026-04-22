@@ -194,7 +194,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     results = []
 
-    for i,j,k,l in itertools.product([0,1,2], [0,1,2], [0,1,2], [0,1,2]):
+    for i,j,k,l in itertools.product([1], [5], [3], [0]):
 
         try:
 
@@ -286,7 +286,7 @@ def run_auto_fit(data):
     coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel_parsweep.csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel_().csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)

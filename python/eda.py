@@ -13,7 +13,7 @@ def scatterplot_matrix(df, img_folder, img_name, colour):
     scatterplot matrix of all numerical variables in dataframe
     """
     var_labels = ['Rainfall', 'PV Capacity', 'Temperature', 'Solar Irradiance', 'Total Power']
-    p = sns.pairplot(df, plot_kws={'alpha': 0.2, 's': 10, 'color':colour})
+    p = sns.pairplot(df, plot_kws={'alpha': 0.6, 's': 10}, hue='season', palette='Spectral')
     p.x_vars = var_labels
     p.y_vars = var_labels
     p._add_axis_labels()
@@ -27,6 +27,25 @@ def corr_matrix (df, peak_df, img_folder):
     correlation matrix of all numerical variables in dataframe
     """
     var_labels = ['Rainfall', 'PV Capacity', 'Temperature', 'Solar Irradiance', 'Total Power']
+    
+    fig, axs = plt.subplots(2, 2, figsize=(12,12))
+    for i in range(4):
+        row = i // 2
+        col = i % 2
+        current_season = peak_df['season'].unique()[i]
+        season_peak_df = peak_df[peak_df['season']==current_season]
+        season_cm = season_peak_df.corr(numeric_only=True)
+        sns.heatmap(season_cm, annot=True, cmap='coolwarm', vmin=-1, vmax=1, ax=axs[row, col], cbar=False, xticklabels=var_labels, yticklabels=var_labels)
+        axs[row, col].set_title(current_season)
+        if row == 0:
+            axs[row, col].set(xticklabels=[])
+        if col == 1:
+            axs[row, col].set(yticklabels=[])
+    plt.suptitle('Seasonal Correlation Between Variables')
+    plt.tight_layout()
+    plt.savefig(img_folder / 'corr_matrices_season_peak')
+    plt.close()
+
     cm = df.corr(numeric_only=True)
     peak_cm = peak_df.corr(numeric_only=True)
     fig, axs = plt.subplots(1, 2, figsize=(11,6))
@@ -52,7 +71,7 @@ def var_distributions(df, peak_df, img_folder):
     for col in col_list:
         col_idx = col_list.index(col)
         sns.violinplot(df[col], ax=axs[0][col_idx], color=vc['all'])
-        sns.violinplot(peak_df[col], ax=axs[1][col_idx], color=vc['peak'])
+        sns.violinplot(peak_df[col], ax=axs[1][col_idx], color=vc['all'])
         ymin, ymax = axs[0][col_idx].get_ylim()
         axs[1][col_idx].set_ylim(ymin, ymax)
         axs[0][col_idx].set_title(col)
@@ -65,6 +84,21 @@ def var_distributions(df, peak_df, img_folder):
     fig.subplots_adjust(left=0.06) 
     plt.savefig(img_folder / 'var_violinplots')
     plt.close()
+
+    # peak demand violin plot by season
+    fig, axs = plt.subplots(5, 1, figsize=(6,12))
+    for col in col_list:
+        col_idx = col_list.index(col)
+        sns.violinplot(peak_df, y=col, ax=axs[col_idx], color=vc['all'], hue='season', palette='Spectral')
+        if col_idx != 4:
+            axs[col_idx].get_legend().remove()
+    plt.suptitle('Peak Demand Variable Distributions')
+    plt.tight_layout()
+    fig.subplots_adjust(bottom=0.035) 
+    axs[4].legend(loc='lower center', bbox_to_anchor=(0.5, -0.2), ncol=4)
+    plt.savefig(img_folder / 'peak_season_violinplots')
+    plt.close()
+
 
     # histograms of numerical variables
     for col in col_list:
@@ -106,11 +140,11 @@ def var_distributions(df, peak_df, img_folder):
 
     # histogram showing time of peak demand
     peak_df['hour_float'] = peak_df['datetime'].dt.hour + peak_df['datetime'].dt.minute / 60
-    sns.histplot(peak_df, x='hour_float', bins=48, color=vc['peak'])
+    sns.histplot(peak_df, x='hour_float', bins=48, hue='season', multiple='stack', palette='Spectral')
     plt.xticks(range(0, 24, 1))  # show every 2 hours
     plt.xlabel('Hour')
     plt.title('Time Frequency of Peak Electricity Demand')
-    plt.savefig(img_folder / 'peak_demand_time_histogram')
+    plt.savefig(img_folder / 'peak_demand_time_histogram_seasons')
     plt.close()
 
 
@@ -241,6 +275,9 @@ demand_df['time'] = pd.to_datetime(demand_df['time'], format='%H:%M:%S')
 demand_df['date'] = demand_df['datetime'].dt.date
 demand_df['date'] = pd.to_datetime(demand_df['date'], format='%Y-%m-%d')
 demand_df = demand_df[demand_df['date']!='2010-01-01']
+seasons_dict={1: 'Summer', 2: 'Summer', 3: 'Autumn', 4: 'Autumn', 5: 'Autumn', 6: 'Winter',
+                  7: 'Winter', 8: 'Winter', 9: 'Spring', 10: 'Spring', 11: 'Spring', 12: 'Summer'}
+demand_df['season'] = demand_df['date'].dt.month.map(seasons_dict)
 
 # get corresponding data to daily peak demand
 max_idx = demand_df.groupby('date')['total_demand'].idxmax()
@@ -250,22 +287,22 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
 
 # explore relationships between variables
-scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison', vc['all'])
-scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison', vc['peak'])
-corr_matrix (demand_df, peak_demand_df, img_folder)
+#scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison', vc['all'])
+#scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison', vc['peak'])
+#corr_matrix (demand_df, peak_demand_df, img_folder)
 
 # explore variable distributions
 var_distributions(demand_df, peak_demand_df, img_folder)
 
 # explore temporal distributions
-demand_time(peak_demand_df, img_folder)
-demand_time_all(demand_df, peak_demand_df, img_folder)
-daily_stats(demand_df, peak_demand_df, img_folder)
+#demand_time(peak_demand_df, img_folder)
+#demand_time_all(demand_df, peak_demand_df, img_folder)
+#daily_stats(demand_df, peak_demand_df, img_folder)
 
 # plot AEMO forecast distributions
-aemo_forecast(forecast_demand_df, img_folder)
+#aemo_forecast(forecast_demand_df, img_folder)
 
 
 
-statistic_reports(demand_df, peak_demand_df, 'pv_capacity')
+#statistic_reports(demand_df, peak_demand_df, 'pv_capacity')
 

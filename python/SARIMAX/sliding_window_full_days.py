@@ -25,7 +25,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     testing_set = data[mask_test]
     training_set = data[mask_train]
     # build the ARIMA model
-    model = ARIMA(order=(2, 0, 0), seasonal_order=(0, 0, 0), season_length=48)
+    model = ARIMA(order=(1, 0, 1), seasonal_order=(1, 0, 1), season_length=48)
 
     if using_exog:
         training_exog = training_set.drop(["total_demand"], axis=1)
@@ -103,7 +103,7 @@ if __name__=="__main__":
 
     df = pd.DataFrame(results)
     df.sort_values(by="eval_date", inplace=True)
-    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_{datetime.date.today()}_with_exog_all_data.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_{datetime.date.today()}_with_exog_all_data_low_aic.csv")
 
     exit()
 

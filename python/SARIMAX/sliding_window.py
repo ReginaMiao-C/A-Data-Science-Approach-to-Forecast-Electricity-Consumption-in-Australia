@@ -26,7 +26,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     testing_set = data[mask_test]
     training_set = data[mask_train]
     # build the ARIMA model
-    model = ARIMA(order=(1, 0, 5), seasonal_order=(3, 1, 0), season_length=48)
+    model = ARIMA(order=(1, 0, 1), seasonal_order=(1, 0, 1), season_length=48)
 
     if using_exog:
         training_exog = training_set.drop(["total_demand"], axis=1)
@@ -45,7 +45,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     print(f"{start}: {model.model_['aicc']}")
 
-    stats = get_stats(model, exog_titles=testing_set.columns, _print=False)
+    stats = get_stats(model, exog_titles=testing_exog.columns, _print=False)
 
 
     results_data = {"model": model.model_["arma"],
@@ -82,6 +82,10 @@ if __name__=="__main__":
     data = get_data(data_folder)
     data["pv_capacity"] = data["pv_capacity"]/1000
 
+    data["temperature^2"] = data["temperature"]**2
+    data["temp_1^2"] = data["temp_1"] ** 2
+    data["temp_9^2"] = data["temp_9"] ** 2
+
     plot = False
     using_exog = True
 
@@ -102,9 +106,17 @@ if __name__=="__main__":
     with Pool(8) as pool:
         results = pool.starmap(run_date_section, func_args)
 
-    df = pd.DataFrame(results)
+    # something odd happens with stats dictionary strip it out and save it separately.
+    results_flat = [{k: v for k, v in r.items() if k != "stats"} for r in results]
+    df = pd.DataFrame(results_flat)
     df.sort_values(by="eval_date", inplace=True)
-    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog_noxpars.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog_square_temps.csv")
+
+    stats_df = pd.concat([r["stats"].assign(eval_date=r["eval_date"]) for r in results])
+    stats_df.sort_values(by="eval_date", inplace=True)
+    stats_df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog_square_temps_statsfile.csv")
+
+
 
     exit()
 

@@ -8,6 +8,7 @@ import matplotlib.dates as mdates
 import python.colour_dict as colour_dict
 from python.public_holidays import get_holidays
 from fitting import get_data
+import re
 
 def plot_peaks(actual, hi, low, mean, x, name, axis_name, plt_title=None):
     plt.style.use("seaborn-v0_8-whitegrid")  # nice default styling
@@ -35,9 +36,22 @@ cwd = Path.cwd()
 
 plt_folder = cwd.parent / "figures"
 
-#no_exog = pd.read_csv(cwd / 'final_results_window_2026-04-22_with_exog.csv')
-no_exog = pd.read_csv(cwd / 'final_results_window_2026-04-23_with_exog_low_aic.csv')
+#exog = pd.read_csv(cwd / 'final_results_window_2026-04-22_with_exog.csv')
+no_exog = pd.read_csv(cwd / 'final_results_window_2026-04-23_with_exog_square_temps.csv')
 
+"""stats_stash = {}
+for enum, row in no_exog.iterrows():
+    stats = row["stats"]
+    nl_stat = stats.split('\n')
+    info ={}
+    for line in nl_stat[0:17]:
+        dataline = re.split(r"\s+", line.strip())
+        info[dataline[1]] = dataline[4]
+    stats_stash[row["eval_date"]] = info
+
+stats_stash = pd.DataFrame.from_dict(stats_stash)
+
+"""
 cwd = Path.cwd()
 root_folder = cwd.parent.parent
 data_folder = root_folder / "data"
@@ -83,7 +97,7 @@ daily_lo= daily_lo[daily_peaks_arg, np.arange(daily_lo.shape[1])]
 
 
 plot_peaks(actual_peak,daily_hi, daily_lo, daily_peaks,
-           time, "SARIMAX_peak_daily", "Peak Electricity Demand (MW)", plt_title="SARIMAX")
+           time, "SARIMAX_peak_daily_squared", "Peak Electricity Demand (MW)", plt_title="SARIMAX")
 
 holidays = get_holidays(2020)
 holidays = pd.to_datetime(holidays)

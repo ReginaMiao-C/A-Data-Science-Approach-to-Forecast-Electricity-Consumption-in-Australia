@@ -51,6 +51,7 @@ holidays = [dt for sublist in holidays for dt in sublist]
 
 one_hot_holidays = np.zeros_like(log_demand.index, dtype=int)
 one_hot_weekdays = np.zeros_like(log_demand.index, dtype=int)
+
 for enum, day_of_index in enumerate(log_demand.index):
 
     temp_date = datetime.date(day_of_index.year, day_of_index.month, day_of_index.day)
@@ -115,6 +116,8 @@ data["temp_9_cos"] = data["temperature"].shift(9).values * fourier_yearly.iloc[:
 data["solar_4_cos"] = data["solar_power"].shift(4).values * fourier_yearly.iloc[:, 1].values
 data["solar_16_cos"] = data["solar_power"].shift(16).values * fourier_yearly.iloc[:, 1].values
 
+data["day"] = data.index.day
+
 data["lag_48*7"] = data["total_demand"].shift(48 * 7)
 
 # dump the nan rows
@@ -126,16 +129,16 @@ data.index = pd.DatetimeIndex(data.index, freq='30min')
 
 complete_dataset = pd.concat([data, weekly_terms], axis=1)
 complete_dataset.drop([
-    "pv_capacity",
+    #"pv_capacity",
     "rainfall",
     "holidays",
-    "t2",
+    #"t2",
     "weekends",
 ], axis=1, inplace=True)
 
 params = None
 
-for steps in range(100):
+for steps in range(1):
 
     print(steps)
 
@@ -157,7 +160,7 @@ for steps in range(100):
                                     enforce_stationarity=False,
                                     enforce_invertibility=False)
 
-    fit_res1 = model.fit(disp=False, maxiter=1000, start_params=None)
+    fit_res1 = model.fit(disp=True, maxiter=1000, start_params=None)
 
     params = fit_res1.params
 
@@ -194,7 +197,7 @@ for steps in range(100):
 
 
 results = pd.DataFrame(daily_max, columns=["date", "prediction", "actual"])
-
+autosolve = pm.auto_arima(y=train_set, X=train_exog,m=48, trace=True)
 
 if False:
     for i in range(1, 6):

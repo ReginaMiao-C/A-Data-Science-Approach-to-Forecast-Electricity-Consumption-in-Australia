@@ -73,6 +73,8 @@ end_test  = 31
 burn_in = 31
 data["lag_48"] = data["total_demand"].shift(48)
 data["lag_96"] = data["total_demand"].shift(96)
+data["lag_48*7"] = data["total_demand"].shift(48*7)
+
 
 # dump the nan rows
 data.dropna(inplace=True, how='any', axis=0)

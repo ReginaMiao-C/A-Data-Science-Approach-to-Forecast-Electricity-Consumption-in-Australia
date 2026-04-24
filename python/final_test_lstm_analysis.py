@@ -29,11 +29,11 @@ def process_dfs(df, aemo_df, df_format='%Y-%m-%d'):
     df_comb = pd.merge(df_filtered, aemo_df_filtered, on='date', how='left')
     return df, df_comb
 
-def plot_results(df, res_path, model_name):
+def plot_results(df, res_path, model_name, label='LSTM Prediction'):
     df['resid'] = df['true_peak'] - df['pred_peak']
     fig, axs = plt.subplots(2, 1, figsize=(12, 6))
     sns.lineplot(df, x='date', y='true_peak', color='orange', ax = axs[0], label='True Value')
-    sns.lineplot(df, x='date', y='pred_peak', color='sienna', ax = axs[0], linestyle='--', label='LSTM Prediction', linewidth=1)
+    sns.lineplot(df, x='date', y='pred_peak', color='sienna', ax = axs[0], linestyle='--', label=label, linewidth=1)
     axs[0].legend()
     sns.scatterplot(df, x='date', y='resid', color='sienna', ax = axs[1], alpha=0.6)
     axs[0].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
@@ -58,7 +58,7 @@ def plot_results(df, res_path, model_name):
     df['pred_peak_time'] = pd.to_datetime('1970-01-01 ' + df['pred_peak_time'].dt.time.astype(str))
     fig, axs = plt.subplots(2, 1, figsize=(12, 6))
     sns.lineplot(df, x='date', y='true_peak_time', color='orange', label='True Value', ax = axs[0])
-    sns.lineplot(df, x='date', y='pred_peak_time', color='sienna',  ax = axs[0], linestyle='--', label='LSTM Prediction', linewidth=1)
+    sns.lineplot(df, x='date', y='pred_peak_time', color='sienna',  ax = axs[0], linestyle='--', label=label, linewidth=1)
     axs[0].legend()
     sns.scatterplot(df, x='date', y='time_resid', color='sienna', ax = axs[1], alpha=0.6, zorder=2)
     axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
@@ -123,7 +123,7 @@ data_folder = root_folder / 'data'
 forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
 # Ensemble/LSTM/SARIMAX/AEMO
-model = 'AEMO'
+model = 'SARIMAX'
 
 if model == 'LSTM':
     # best final model
@@ -152,9 +152,9 @@ elif model == 'Ensemble':
 
 
 elif model == 'SARIMAX':
-    csv_path = cwd / 'SARIMAX'
+    csv_path = cwd / 'SARIMAX' / "data"
     save_path = root_folder / 'Results' / 'SARIMAX'
-    df = pd.read_csv(csv_path / 'final_results_2026-04-23_with_exog_all_data_low_aic.csv')
+    df = pd.read_csv(csv_path / 'daily_data_with_exog2026-04-24.csv')
     df = df[['eval_date', 'peak_actual_afternoon', 'peak_predicted_afternoon_mean', 'time_of_peak_actual_afternoon', 'time_of_peak_predicted_afternoon', 'peak_actual_morning', 'peak_predicted_morning_mean', 'time_of_peak_actual_morning', 'time_of_peak_predicted_morning']]
     df['eval_date'] = pd.to_datetime(df['eval_date'])
     #df = df[df['eval_date'].dt.year == 2020]
@@ -183,7 +183,7 @@ elif model == 'SARIMAX':
 
     forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
     df_final, resid_df = process_dfs(df_final, forecast_demand_df)
-    plot_results(df_final, save_path, 'sarimax_test')
+    plot_results(df_final, save_path, 'sarimax_test', "SARIMAX Predictions")
     plot_resids(resid_df, save_path, 'sarimax_test', model)
 
 elif model == 'AEMO':

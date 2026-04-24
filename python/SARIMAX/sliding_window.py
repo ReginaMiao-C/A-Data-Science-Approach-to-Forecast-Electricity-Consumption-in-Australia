@@ -26,7 +26,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     testing_set = data[mask_test]
     training_set = data[mask_train]
     # build the ARIMA model
-    model = ARIMA(order=(1, 0, 1), seasonal_order=(1, 0, 1), season_length=48)
+    model = ARIMA(order=(1, 0, 5), seasonal_order=(3, 1, 0), season_length=48)
 
     if using_exog:
         training_exog = training_set.drop(["total_demand"], axis=1)
@@ -91,7 +91,7 @@ if __name__=="__main__":
     #data["temp_9^2"] = data["temp_9"] ** 2
 
     plot = False
-    using_exog = False
+    using_exog = True
 
     # number of days to slide forward
     step = 1

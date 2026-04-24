@@ -45,7 +45,10 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     print(f"{start}: {model.model_['aicc']}")
 
-    stats = get_stats(model, exog_titles=testing_exog.columns, _print=False)
+    if using_exog:
+        stats = get_stats(model, exog_titles=testing_exog.columns, _print=False)
+    else:
+        stats = get_stats(model, exog_titles=None, _print=False)
 
 
     results_data = {"model": model.model_["arma"],
@@ -82,12 +85,13 @@ if __name__=="__main__":
     data = get_data(data_folder)
     data["pv_capacity"] = data["pv_capacity"]/1000
 
-    data["temperature^2"] = data["temperature"]**2
-    data["temp_1^2"] = data["temp_1"] ** 2
-    data["temp_9^2"] = data["temp_9"] ** 2
+    #data.drop(columns=["lag_48*7"], inplace=True)
+    #data["temp^2"] = data["temperature"]**2
+    #data["temp_1^2"] = data["temp_1"] ** 2
+    #data["temp_9^2"] = data["temp_9"] ** 2
 
     plot = False
-    using_exog = True
+    using_exog = False
 
     # number of days to slide forward
     step = 1
@@ -103,18 +107,20 @@ if __name__=="__main__":
     #for args in func_args:
     #    results = run_date_section(*args)
 
-    with Pool(8) as pool:
+    with Pool(20) as pool:
         results = pool.starmap(run_date_section, func_args)
+
+    export_file_name =  f"daily_data_without_exog{datetime.date.today()}"
 
     # something odd happens with stats dictionary strip it out and save it separately.
     results_flat = [{k: v for k, v in r.items() if k != "stats"} for r in results]
     df = pd.DataFrame(results_flat)
     df.sort_values(by="eval_date", inplace=True)
-    df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog_square_temps.csv")
+    df.to_csv(root_folder / "python" / "SARIMAX" / (export_file_name + ".csv"))
 
     stats_df = pd.concat([r["stats"].assign(eval_date=r["eval_date"]) for r in results])
     stats_df.sort_values(by="eval_date", inplace=True)
-    stats_df.to_csv(root_folder / "python" / "SARIMAX" / f"final_results_window_{datetime.date.today()}_with_exog_square_temps_statsfile.csv")
+    stats_df.to_csv(root_folder / "python" / "SARIMAX" / (export_file_name + "_stats.csv"))
 
 
 

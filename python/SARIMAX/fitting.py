@@ -214,10 +214,17 @@ def get_data(data_folder):
 
     one_hot_holidays = np.zeros_like(data.index, dtype=int)
     one_hot_weekdays = np.zeros_like(data.index, dtype=int)
+    day_data = np.zeros_like(one_hot_holidays, dtype=int)
+    month_data = np.zeros_like(one_hot_holidays, dtype=int)
+    hour_data = np.zeros_like(one_hot_holidays, dtype=int)
 
     for enum, day_of_index in enumerate(data.index):
 
         temp_date = datetime.date(day_of_index.year, day_of_index.month, day_of_index.day)
+
+        day_data[enum] = temp_date.weekday()
+        month_data[enum] = temp_date.month
+        hour_data[enum] = day_of_index.hour
 
         if temp_date in holidays:
             one_hot_holidays[enum] = 1
@@ -232,6 +239,11 @@ def get_data(data_folder):
     data["temp_9"] = data["temperature"].shift(9).values#*yearly_tersm["sin_17520_1"]
     data["solar_4"] = data["solar_power"].shift(4).values#*yearly_tersm["sin_17520_1"]
     data["solar_16"] = data["solar_power"].shift(16).values#*yearly_tersm["sin_17520_1"]
+    data["Holidays"] = one_hot_holidays
+    data["Weekends"] = one_hot_weekdays
+    data["Day of the Week"] = day_data
+    data["Month"] = month_data
+    data["Hour"] = hour_data
 
     #data["temp_1C"] = data["temperature"].shift(1).values*yearly_tersm["cos_17520_1"]
     #data["temp_9C"] = data["temperature"].shift(9).values*yearly_tersm["cos_17520_1"]
@@ -267,8 +279,9 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
             season_length=48,
             seasonal_test="ocsb",
             test="kpss",
-            max_p=5, max_q=5,
-            max_P=5, max_Q=5,
+            max_p=7, max_q=7,
+            max_P=7, max_Q=7,
+            stepwise=True,max_order=20,
             trace=True, ic='aicc', nmodels=200)
 
     # catch a warning related to OCSB, it's annoying and the effect is not relevant for this report.
@@ -354,7 +367,7 @@ def run_auto_fit(data):
     #for args in func_args:
     #    results = run_date_section(*args)
 
-    with Pool(8) as pool:
+    with Pool(16) as pool:
         results = pool.starmap(run_date_section, func_args)
 
     df = pd.DataFrame(results)
@@ -364,7 +377,7 @@ def run_auto_fit(data):
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
 
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_no_scaling_{datetime.date.today()}.csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_no_scaling_{datetime.date.today()}_super_high.csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)
@@ -385,8 +398,10 @@ if __name__=="__main__":
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
     data = get_data(data_folder)
+
     #reduce peaks in capacity KW->MW.
     data["pv_capacity"]= data["pv_capacity"]/1000
+    #data.drop(columns=["lag_48*7", "pv_capacity"], inplace=True)
 
     if bc_pics:
 

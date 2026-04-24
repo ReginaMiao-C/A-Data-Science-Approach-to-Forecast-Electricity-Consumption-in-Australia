@@ -151,8 +151,6 @@ for repeat in range(70*obs, len(val_data), 40*obs):
     val_x_start = train_x_start + obs
     val_x_end = val_y_start
 
-
-
     x_train = x.iloc[train_x_start:train_x_end]
     y_train = y.iloc[train_y_start:train_y_end]
     x_val = x.iloc[val_x_start:val_x_end]

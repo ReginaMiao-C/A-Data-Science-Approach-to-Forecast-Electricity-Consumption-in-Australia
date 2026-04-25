@@ -46,12 +46,13 @@ def repair_dataframe(df, value_col, datetime_col="DATE", method="linear"):
 
     return df_out
 
-def import_data(cwd:Path, filename:str):
+def import_data(cwd:Path, filename:str, rows = None):
     """
     function to import data
     Args:
         cwd: current working directory as a Path object
         filename: filename of the csv file as a string
+        rows: number of rows to skip for the header
     Returns:
         pd.DataFrame
     Raises:
@@ -66,15 +67,18 @@ def import_data(cwd:Path, filename:str):
         raise Exception(f"More than one file {filename} found.")
     else:
         file = files[0]
-
         # files have different headers so just loop until we find the data, as they all do.
-        for i in range(20):
-            try:
-                df = pd.read_csv(file, skiprows=i)
-            except Exception as e:
-                continue
 
-            break
+        if rows is None:
+            for i in range(20):
+                try:
+                    df = pd.read_csv(file, skiprows=i)
+                except Exception as e:
+                    continue
+
+                break
+        else:
+            df = pd.read_csv(file, skiprows=rows)
 
     return df
 
@@ -114,7 +118,7 @@ if __name__ == "__main__":
     cwd = cwd.parent / "data"
 
     # load the data and create the datetime as necessary:
-    solar_power =  import_data(cwd, "POWER_POINT")
+    solar_power =  import_data(cwd, "POWER_POINT",10)
     solar_power["DATE"] = pd.to_datetime({"year": solar_power["YEAR"], "month": solar_power["MO"], "day": solar_power["DY"],"hour": solar_power["HR"],})
 
     # solar power is at UTC, Sydney is at UTC+10

@@ -233,22 +233,16 @@ def get_data(data_folder):
             one_hot_weekdays[enum] = 1
 
     weekly_terms = fourier_series(data.index, 7 * 48, K=1, t0=data.index[0])
-    #yearly_tersm = fourier_series(data.index, 365*48, K=1, t0=data.index[0])
 
-    data["temp_1"] = data["temperature"].shift(1).values#*yearly_tersm["sin_17520_1"]
-    data["temp_9"] = data["temperature"].shift(9).values#*yearly_tersm["sin_17520_1"]
-    data["solar_4"] = data["solar_power"].shift(4).values#*yearly_tersm["sin_17520_1"]
-    data["solar_16"] = data["solar_power"].shift(16).values#*yearly_tersm["sin_17520_1"]
+    data["temp_1"] = data["temperature"].shift(1).values
+    data["temp_9"] = data["temperature"].shift(9).values
+    data["solar_4"] = data["solar_power"].shift(4).values
+    data["solar_16"] = data["solar_power"].shift(16).values
     data["Holidays"] = one_hot_holidays
     data["Weekends"] = one_hot_weekdays
     data["Day of the Week"] = day_data
     data["Month"] = month_data
     data["Hour"] = hour_data
-
-    #data["temp_1C"] = data["temperature"].shift(1).values*yearly_tersm["cos_17520_1"]
-    #data["temp_9C"] = data["temperature"].shift(9).values*yearly_tersm["cos_17520_1"]
-    #data["solar_4C"] = data["solar_power"].shift(4).values*yearly_tersm["cos_17520_1"]
-    #data["solar_16C"] = data["solar_power"].shift(16).values*yearly_tersm["cos_17520_1"]
 
     data["lag_48*7"] = data["total_demand"].shift(48 * 7)
     data = pd.concat([data, weekly_terms], axis=1)

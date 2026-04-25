@@ -27,7 +27,7 @@ def corr_matrix (df, peak_df, img_folder):
     correlation matrix of all numerical variables in dataframe
     """
     var_labels = ['Rainfall', 'PV Capacity', 'Temperature', 'Solar Irradiance', 'Total Power']
-    
+    # correlation matrices split by season
     fig, axs = plt.subplots(2, 2, figsize=(12,12))
     for i in range(4):
         row = i // 2
@@ -46,6 +46,7 @@ def corr_matrix (df, peak_df, img_folder):
     plt.savefig(img_folder / 'corr_matrices_season_peak')
     plt.close()
 
+    # correlation matrices over all data
     cm = df.corr(numeric_only=True)
     peak_cm = peak_df.corr(numeric_only=True)
     fig, axs = plt.subplots(1, 2, figsize=(11,6))
@@ -99,7 +100,6 @@ def var_distributions(df, peak_df, img_folder):
     plt.savefig(img_folder / 'peak_season_violinplots')
     plt.close()
 
-
     # histograms of numerical variables
     for col in col_list:
         fig, axs = plt.subplots(1, 2, figsize=(8,5))
@@ -120,7 +120,8 @@ def var_distributions(df, peak_df, img_folder):
         img_name = col + '_histograms'
         plt.savefig(img_folder / img_name)
         plt.close()
-
+        
+    # box plots of numerical variables
     for col in col_list:
         fig, axs = plt.subplots(1, 2, figsize=(6,5), layout='constrained')
         sns.boxplot(df, y=col, ax=axs[0], color=vc['all'])
@@ -250,15 +251,36 @@ def aemo_forecast(forecast, img_folder):
     plt.close()
 
 
-def statistic_reports(df, peak_df, col):
-    print('All Demand:')
-    print(df[col].describe())
-    print(df[col].skew())
-    print(df[col].kurt())
-    print('\nPeak Demand:')
-    print(peak_df[col].describe())
-    print(peak_df[col].skew())
-    print(peak_df[col].kurt())
+
+def statistic_reports(df, peak_df, col, save_path):
+    """
+    statistical summaries for a given variable (col) for peak and all demand
+    saves to csv file in save_path folder
+    """
+    all_stats = df[col].describe().to_frame(name='All')
+    all_stats.loc['skew'] = df[col].skew()
+    all_stats.loc['kurtosis'] = df[col].kurt()
+
+    peak_stats = peak_df[col].describe().to_frame(name='All')
+    peak_stats.loc['skew'] = peak_df[col].skew()
+    peak_stats.loc['kurtosis'] = peak_df[col].kurt()
+    for s in df['season'].unique():
+        all_season = df[df['season'] == s]
+        season_stats = all_season[col].describe().to_frame(name=s)
+        season_stats.loc['skew'] = all_season[col].skew()
+        season_stats.loc['kurtosis'] = all_season[col].kurt()
+        all_stats[s] = season_stats
+
+        peak_season = peak_df[peak_df['season'] == s]
+        peak_season_stats = peak_season[col].describe().to_frame(name=s)
+        peak_season_stats.loc['skew'] = peak_season[col].skew()
+        peak_season_stats.loc['kurtosis'] = peak_season[col].kurt()
+        peak_stats[s] = peak_season_stats
+
+    all_name = col + '_all_demand.csv'
+    peak_name = col + '_peak_demand.csv'
+    all_stats.to_csv(save_path / all_name)
+    peak_stats.to_csv(save_path / peak_name)
 
 
 
@@ -267,7 +289,10 @@ cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
 img_folder = root_folder / 'figures'
+stats_path = data_folder / 'variable_stats'
+stats_path.mkdir(parents=True,exist_ok=True)
 
+# data preprocessing
 demand_df = pd.read_csv(data_folder / 'all_data_30min.csv')
 demand_df['datetime'] = pd.to_datetime(demand_df['datetime'])
 demand_df['time'] = demand_df['datetime'].dt.time
@@ -275,11 +300,12 @@ demand_df['time'] = pd.to_datetime(demand_df['time'], format='%H:%M:%S')
 demand_df['date'] = demand_df['datetime'].dt.date
 demand_df['date'] = pd.to_datetime(demand_df['date'], format='%Y-%m-%d')
 demand_df = demand_df[demand_df['date']!='2010-01-01']
+# map dates to seasons
 seasons_dict={1: 'Summer', 2: 'Summer', 3: 'Autumn', 4: 'Autumn', 5: 'Autumn', 6: 'Winter',
                   7: 'Winter', 8: 'Winter', 9: 'Spring', 10: 'Spring', 11: 'Spring', 12: 'Summer'}
 demand_df['season'] = demand_df['date'].dt.month.map(seasons_dict)
 
-# get corresponding data to daily peak demand
+# get daily peak demand
 max_idx = demand_df.groupby('date')['total_demand'].idxmax()
 peak_demand_df = demand_df.loc[max_idx].reset_index(drop=True)
 
@@ -292,7 +318,7 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 #corr_matrix (demand_df, peak_demand_df, img_folder)
 
 # explore variable distributions
-var_distributions(demand_df, peak_demand_df, img_folder)
+# var_distributions(demand_df, peak_demand_df, img_folder)
 
 # explore temporal distributions
 #demand_time(peak_demand_df, img_folder)
@@ -300,9 +326,12 @@ var_distributions(demand_df, peak_demand_df, img_folder)
 #daily_stats(demand_df, peak_demand_df, img_folder)
 
 # plot AEMO forecast distributions
-#aemo_forecast(forecast_demand_df, img_folder)
+aemo_forecast(forecast_demand_df, img_folder)
 
-
-
-#statistic_reports(demand_df, peak_demand_df, 'pv_capacity')
+# reports of variable distribution statistics
+statistic_reports(demand_df, peak_demand_df, 'rainfall', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'pv_capacity', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'temperature', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'solar_power', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'total_demand', stats_path)
 

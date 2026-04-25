@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 import torch
 import torch.nn as nn
+import seaborn as sns
 import sys
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
@@ -257,8 +258,7 @@ class PeakModel(nn.Module):
         peak_out, _ = torch.max(out, dim=1, keepdim=True)
         return peak_out
 
-
-def average_shap_training_windows(df, initial_val_y_start, num_repeats, days_between_val=1,
+def average_shap_training_windows(df, df_datetime, initial_val_y_start, num_repeats, days_between_val=1,
                                   retrain=True, max_background=10, save=False,
                                   file_path='', file_name_prefix='lstm_shap'):
     """
@@ -289,6 +289,21 @@ def average_shap_training_windows(df, initial_val_y_start, num_repeats, days_bet
     train_windows = []
     model_states = []
 
+    # create season column (Australian seasons)
+    def get_season(date):
+        month = pd.to_datetime(date).month
+        if month in [12, 1, 2]:
+            return 'Summer'
+        elif month in [3, 4, 5]:
+            return 'Autumn'
+        elif month in [6, 7, 8]:
+            return 'Winter'
+        else:
+            return 'Spring'
+
+    df_datetime['season'] = df_datetime['date'].apply(get_season)
+    
+    # training loop
     for r in range(num_repeats):
         val_y_start = initial_val_y_start + (window_slide * r)
 
@@ -312,11 +327,15 @@ def average_shap_training_windows(df, initial_val_y_start, num_repeats, days_bet
     # use first few training windows as SHAP background data
     background_data = torch.cat(train_windows[:max_background], dim=0)
 
-    # store aggregated SHAP values and aggregated feature values
-    shap_feature_matrix = []
-    x_feature_matrix = []
+    # store aggregated SHAP values for each season
+    shap_by_season = {'Summer': [], 'Autumn': [], 'Winter': [], 'Spring': []}
+    x_by_season = {'Summer': [], 'Autumn': [], 'Winter': [], 'Spring': []}
 
     for i in range(len(train_windows)):
+        
+        val_y_start = initial_val_y_start + (window_slide * i)
+        season = df_datetime.iloc[val_y_start]['season']
+        
         # reload trained model for this window
         temp_model = LSTMmodel(input_size=x.shape[1], hidden_size=32, num_layers=2, dropout=0)
         temp_model.load_state_dict(model_states[i])
@@ -341,16 +360,52 @@ def average_shap_training_windows(df, initial_val_y_start, num_repeats, days_bet
         shap_values_agg = np.mean(np.abs(shap_values), axis=1).squeeze(0)
         explain_data_agg = np.mean(explain_data_np, axis=1).squeeze(0)
 
-        shap_feature_matrix.append(shap_values_agg)
-        x_feature_matrix.append(explain_data_agg)
+        shap_by_season[season].append(shap_values_agg)
+        x_by_season[season].append(explain_data_agg)
+    
+    seasonal_shap = {}
 
-    shap_feature_matrix = np.vstack(shap_feature_matrix)
-    x_feature_matrix = np.vstack(x_feature_matrix)
+    for s in shap_by_season:
+        if len(shap_by_season[s]) > 0:
+            shap_matrix = np.vstack(shap_by_season[s])
+            seasonal_shap[s] = shap_matrix.mean(axis=0)
+        else:
+            seasonal_shap[s] = np.zeros(len(feature_names))
+    
+    shap_season_df = pd.DataFrame(seasonal_shap, index=feature_names)
+    shap_season_df = shap_season_df[['Summer', 'Autumn', 'Winter', 'Spring']]
+
+    plt.figure(figsize=(8,6))
+    sns.heatmap(
+        shap_season_df,
+        cmap='coolwarm',
+        annot=True,
+        fmt=".2e"
+    )
+    plt.title('SHAP Feature Importance by Season')
+    plt.ylabel('Feature')
+    plt.xlabel('Season')
+    plt.tight_layout()
+    
+    plt.savefig(file_path / (file_name_prefix + '_shap_heatmap.png'))
+    plt.close()
+
+
+    # combine all seasons into one matrix
+    all_shap = []
+    all_x = []
+    
+    for s in shap_by_season:
+        if len(shap_by_season[s]) > 0:
+            all_shap.append(np.vstack(shap_by_season[s]))
+            all_x.append(np.vstack(x_by_season[s]))
+    
+    all_shap = np.vstack(all_shap)
+    all_x = np.vstack(all_x)
  
-    # average SHAP values across all rolling training windows
     shap_importance = pd.DataFrame({
         'feature': feature_names,
-        'mean_abs_shap': shap_feature_matrix.mean(axis=0)
+        'mean_abs_shap': all_shap.mean(axis=0)
     }).sort_values('mean_abs_shap', ascending=False).reset_index(drop=True)
 
     if save:
@@ -367,21 +422,16 @@ def average_shap_training_windows(df, initial_val_y_start, num_repeats, days_bet
 
         # save SHAP summary plot across all windows
         shap.summary_plot(
-            shap_feature_matrix,
-            features=x_feature_matrix,
+            all_shap,
+            features=all_x,
             feature_names=feature_names,
             show=False
-        )
+        )   
         plt.tight_layout()
         plt.savefig(file_path / (file_name_prefix + '_shap_summary.png'), bbox_inches='tight')
         plt.close()
 
     return shap_importance
-
-
-
-
-
 
 
 

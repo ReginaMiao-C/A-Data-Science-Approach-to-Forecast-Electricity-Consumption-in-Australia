@@ -2,7 +2,6 @@
 The purpose of this script is to determine the values of the SARIMAX parameters
 """
 import itertools
-import warnings
 from multiprocessing import freeze_support, Pool
 
 from scipy import stats
@@ -12,11 +11,11 @@ from pathlib import Path
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.seasonal import STL
 
-from statsforecast.models import AutoARIMA, ARIMA
+from statsforecast.models import ARIMA
 
 from python.public_holidays import get_holidays
 from fitting import get_data
@@ -198,7 +197,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
         try:
 
-            model = ARIMA(order=(i, 0, j), seasonal_order=(k, 0, l), season_length=48)
+            model = ARIMA(order=(i, 0, j), seasonal_order=(k, 1, l), season_length=48)
 
             if using_exog:
                 model.fit(training_set["total_demand"], training_set.drop(columns=["total_demand"], axis=1).to_numpy())
@@ -269,7 +268,7 @@ def run_auto_fit(data):
     evaluation_window = 1
 
     start_dates = [datetime.datetime(year=year, month=month, day=1) for (year, month) in itertools.product(years, months)]
-    func_args = [(data, start, training_window, evaluation_window, True) for start in start_dates]
+    func_args = [(data, start, training_window, evaluation_window, False) for start in start_dates]
 
     # single threaded version:
     #for args in func_args:
@@ -286,7 +285,7 @@ def run_auto_fit(data):
     coef_df.columns = [f"coef_{c}" for c in coef_df.columns]
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_exo_{datetime.date.today()}_generalmodel_().csv", index=False)
+        df.to_csv(root_folder/ "python"/ "SARIMAX" / "data" / f"analysis_results_without_exo_{datetime.date.today()}_generalmodel_().csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)

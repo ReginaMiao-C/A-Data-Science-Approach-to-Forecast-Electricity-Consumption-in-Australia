@@ -204,9 +204,9 @@ results = []
 for SARIMAX_Weight in np.arange(0, 1.01, 0.01):
     for LSTM_Weight in np.arange(0, 1.01, 0.01):
         AEMO_Weight = 1 - SARIMAX_Weight - LSTM_Weight
-        # if AEMO_Weight < 0:
-        #     continue
-        AEMO_Weight = 0
+        if AEMO_Weight < 0:
+            continue
+        #AEMO_Weight = 0
 
         train_pred = (
                 SARIMAX_Weight * df_train_ensemble['sarimax_peak_value_predicted'] +
@@ -283,7 +283,9 @@ df_test_ensemble['time_error_minutes'] = (
 
 print("Avg time error (mins):", df_test_ensemble['time_error_minutes'].mean())
 
-# Compare all three models
+# Compare all three models 
+
+# MAE
 # SARIMAX
 sarimax_mae = np.mean(
     np.abs(df_test_ensemble['sarimax_peak_value_predicted'] - df_test_ensemble['actual_peak_value'])
@@ -307,6 +309,32 @@ print("SARIMAX MAE:", sarimax_mae)
 print("LSTM MAE:", lstm_mae)
 print("AEMO MAE:", AEMO_mae)
 print("Ensemble MAE:", ensemble_mae)
+
+# MSE
+sarimax_mse = np.mean((df_test_ensemble['sarimax_peak_value_predicted'] - df_test_ensemble['actual_peak_value'])**2)
+lstm_mse = np.mean((df_test_ensemble['lstm_peak_value_predicted'] - df_test_ensemble['actual_peak_value'])**2)
+AEMO_mse = np.mean((df_test_ensemble['AEMO_peak_value_predicted'] - df_test_ensemble['actual_peak_value'])**2)
+ensemble_mse = np.mean((df_test_ensemble['ensemble_peak_value_predicted'] - df_test_ensemble['actual_peak_value'])**2)
+
+print("\n--- MSE ---")
+print("SARIMAX MSE:", sarimax_mse)
+print("LSTM MSE:", lstm_mse)
+print("AEMO MSE:", AEMO_mse)
+print("Ensemble MSE:", ensemble_mse)
+
+# MAPE
+actual = df_test_ensemble['actual_peak_value']
+
+sarimax_mape = np.mean(np.abs((df_test_ensemble['sarimax_peak_value_predicted'] - actual) / actual)) * 100
+lstm_mape = np.mean(np.abs((df_test_ensemble['lstm_peak_value_predicted'] - actual) / actual)) * 100
+AEMO_mape = np.mean(np.abs((df_test_ensemble['AEMO_peak_value_predicted'] - actual) / actual)) * 100
+ensemble_mape = np.mean(np.abs((df_test_ensemble['ensemble_peak_value_predicted'] - actual) / actual)) * 100
+
+print("\n--- MAPE (%) ---")
+print("SARIMAX MAPE:", sarimax_mape)
+print("LSTM MAPE:", lstm_mape)
+print("AEMO MAPE:", AEMO_mape)
+print("Ensemble MAPE:", ensemble_mape)
 
 df_test_ensemble.to_csv('test_ensemble_final.csv', index=False)
 

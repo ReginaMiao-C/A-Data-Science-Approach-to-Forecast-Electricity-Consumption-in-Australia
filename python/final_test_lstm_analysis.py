@@ -122,8 +122,8 @@ data_folder = root_folder / 'data'
 
 forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
-# Ensemble/LSTM/SARIMAX/AEMO
-model = 'SARIMAX'
+# Ensemble/Ensemble_nr/LSTM/SARIMAX/AEMO
+model = 'Ensemble_nr'
 
 if model == 'LSTM':
     # best final model
@@ -138,17 +138,29 @@ if model == 'LSTM':
 
 
 elif model == 'Ensemble':
+    # LSTM + SARIMAX ensemble
     csv_path = data_folder
     save_path = root_folder / 'Results' / 'ensemble'
     df = pd.read_csv(csv_path / 'test_ensemble_final.csv')
     df = df.drop(columns=['sarimax_peak_value_predicted', 'sarimax_peak_time_predicted','lstm_peak_value_predicted', 'lstm_peak_time_predicted',])
     df = df.rename(columns={'actual_peak_value': 'true_peak', 'actual_peak_time': 'true_peak_time', 'ensemble_peak_value_predicted': 'pred_peak', 'ensemble_peak_time_predicted': 'pred_peak_time'})
 
-    
     df, resid_df = process_dfs(df, forecast_demand_df)
     plot_results(df, save_path, 'ensemble_test')
     plot_resids(resid_df, save_path, 'ensemble_test', model)
 
+
+elif model == 'Ensemble_nr':
+    # ensemble combined with AEMO predictions
+    csv_path = cwd / 'AEMO_files'
+    save_path = root_folder / 'Results' / 'ensemble'
+    df = pd.read_csv(csv_path / 'test_ensemble_final_norestriciton.csv')
+    df = df.drop(columns=['sarimax_peak_value_predicted', 'sarimax_peak_time_predicted','lstm_peak_value_predicted', 'lstm_peak_time_predicted',])
+    df = df.rename(columns={'actual_peak_value': 'true_peak', 'actual_peak_time': 'true_peak_time', 'ensemble_peak_value_predicted': 'pred_peak', 'ensemble_peak_time_predicted': 'pred_peak_time'})
+
+    df, resid_df = process_dfs(df, forecast_demand_df)
+    plot_results(df, save_path, 'ensemble_test_nr')
+    plot_resids(resid_df, save_path, 'ensemble_test_nr', model)
 
 
 elif model == 'SARIMAX':

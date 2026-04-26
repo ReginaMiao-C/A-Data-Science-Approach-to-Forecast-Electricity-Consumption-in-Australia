@@ -12,7 +12,7 @@ def scatterplot_matrix(df, img_folder, img_name, colour):
     """
     scatterplot matrix of all numerical variables in dataframe
     """
-    var_labels = ['Rainfall', 'PV Installation', 'Temperature', 'Solar Irradiance', 'Total Power']
+    var_labels = ['Rainfall', 'PV Installation', 'Temperature', 'Solar Irradiance', 'Electricity Demand']
     p = sns.pairplot(df, plot_kws={'alpha': 0.6, 's': 10}, hue='season', palette='Spectral')
     p.x_vars = var_labels
     p.y_vars = var_labels
@@ -26,7 +26,7 @@ def corr_matrix (df, peak_df, img_folder):
     """
     correlation matrix of all numerical variables in dataframe
     """
-    var_labels = ['Rainfall', 'PV Installation', 'Temperature', 'Solar Irradiance', 'Total Power']
+    var_labels = ['Rainfall', 'PV Installation', 'Temperature', 'Solar Irradiance', 'Electricity Demand']
     # correlation matrices split by season
     fig, axs = plt.subplots(2, 2, figsize=(12,12))
     for i in range(4):
@@ -93,6 +93,7 @@ def var_distributions(df, peak_df, img_folder):
         sns.violinplot(peak_df, y=col, ax=axs[col_idx], color=vc['all'], hue='season', palette='Spectral')
         if col_idx != 4:
             axs[col_idx].get_legend().remove()
+        axs[col_idx].set_ylabel(total_labels[col])
     plt.suptitle('Peak Demand Variable Distributions')
     plt.tight_layout()
     fig.subplots_adjust(bottom=0.035) 
@@ -226,7 +227,6 @@ def daily_stats(df, peak_df, img_folder):
         img_name = col + '_statistics'
         plt.suptitle('Average Variable Statistics')
         plt.tight_layout()
-        img_name = col + '_statistics'
         plt.savefig(img_folder / img_name)
         plt.close()
 

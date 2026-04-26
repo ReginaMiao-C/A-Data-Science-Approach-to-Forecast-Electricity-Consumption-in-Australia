@@ -115,7 +115,7 @@ def var_distributions(df, peak_df, img_folder):
         axs[0].set_ylabel('Count')
         axs[0].set_xlabel(total_labels[col])
         axs[1].set_xlabel(total_labels[col])
-        axs[0].set_title('Total Power')
+        axs[0].set_title('Electricity Demand')
         axs[1].set_title('Peak Electricity Demand')
         img_name = col + '_histograms'
         plt.savefig(img_folder / img_name)
@@ -318,7 +318,7 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 #corr_matrix (demand_df, peak_demand_df, img_folder)
 
 # explore variable distributions
-# var_distributions(demand_df, peak_demand_df, img_folder)
+var_distributions(demand_df, peak_demand_df, img_folder)
 
 # explore temporal distributions
 #demand_time(peak_demand_df, img_folder)
@@ -326,12 +326,12 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 #daily_stats(demand_df, peak_demand_df, img_folder)
 
 # plot AEMO forecast distributions
-aemo_forecast(forecast_demand_df, img_folder)
+#aemo_forecast(forecast_demand_df, img_folder)
 
 # reports of variable distribution statistics
-statistic_reports(demand_df, peak_demand_df, 'rainfall', stats_path)
-statistic_reports(demand_df, peak_demand_df, 'pv_capacity', stats_path)
-statistic_reports(demand_df, peak_demand_df, 'temperature', stats_path)
-statistic_reports(demand_df, peak_demand_df, 'solar_power', stats_path)
-statistic_reports(demand_df, peak_demand_df, 'total_demand', stats_path)
+#statistic_reports(demand_df, peak_demand_df, 'rainfall', stats_path)
+#statistic_reports(demand_df, peak_demand_df, 'pv_capacity', stats_path)
+#statistic_reports(demand_df, peak_demand_df, 'temperature', stats_path)
+#statistic_reports(demand_df, peak_demand_df, 'solar_power', stats_path)
+#statistic_reports(demand_df, peak_demand_df, 'total_demand', stats_path)
 

@@ -27,6 +27,7 @@ All coding has been carried out in Python. Required modules are:
 - coreforecast
 - scipy
 
+### TODO: add ensemble folder - remove ensemble_final
 ## Scripts
 Descriptions of all Python scripts are as follows:
 1. **data_wrangling.py**: inside root directory, used to extract datasets provided for the course from GitHub

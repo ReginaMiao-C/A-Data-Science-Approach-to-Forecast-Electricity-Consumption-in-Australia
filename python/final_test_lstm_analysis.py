@@ -1,15 +1,13 @@
 import pandas as pd
 from pathlib import Path
-import torch
-import torch.nn as nn
 import sys
 import numpy as np
 import public_holidays as ph
 import matplotlib.pyplot as plt
 import seaborn as sns
-from colour_dict import demand_cols as vc
 import matplotlib.dates as mdates
 
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, root_mean_squared_error
 
 
 def process_dfs(df, aemo_df, df_format='%Y-%m-%d'):
@@ -33,6 +31,18 @@ def process_dfs(df, aemo_df, df_format='%Y-%m-%d'):
     df_filtered = df[['date', 'true_peak', 'true_peak_time', 'pred_peak', 'pred_peak_time']].copy()
     df_comb = pd.merge(df_filtered, aemo_df_filtered, on='date', how='left')
     return df, df_comb
+
+def display_metrics(df):
+    time_cols=['true_peak_time', 'pred_peak_time']
+    df[time_cols] = df[time_cols].astype(int) #time in nanoseconds
+    df[time_cols] = (df[time_cols]/1e9)/60 #time in mins
+    print('MAGNITUDE')
+    print('MSE: ', mean_squared_error(df['true_peak'], df['pred_peak']))
+    print('MAE: ', mean_absolute_error(df['true_peak'], df['pred_peak']))
+    print('MAPE: ', (mean_absolute_percentage_error(df['true_peak'], df['pred_peak'])*100))
+    print('TIME')
+    print('MSE: ', mean_squared_error(df['true_peak_time'], df['pred_peak_time']))
+    print('MAE: ', mean_absolute_error(df['true_peak_time'], df['pred_peak_time']))
 
 def plot_results(df, res_path, model_name, model):
     """
@@ -66,6 +76,7 @@ def plot_results(df, res_path, model_name, model):
     plt.close()
 
     # calculate time residuals
+    
     df['time_resid'] = (df['true_peak_time'] - df['pred_peak_time']).dt.total_seconds() / 60
     # format times
     df['true_peak_time'] = pd.to_datetime('1970-01-01 ' + df['true_peak_time'].dt.time.astype(str))
@@ -137,7 +148,7 @@ def plot_resids(df, res_path, model_name, model):
     img_name = 'residual_comparison_' + model
     plt.savefig(res_path / img_name)
     plt.close()
-    print(df_diff['differences'].sum())
+    print('Sum of absolute residual difference', df_diff['differences'].sum())
 
 
 cwd = Path.cwd()
@@ -148,7 +159,7 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
 # select model:
 # Ensemble/Ensemble_nr/LSTM/SARIMAX/AEMO
-model = 'Ensemble'
+model = 'AEMO'
 
 if model == 'LSTM':
     csv_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'
@@ -159,32 +170,36 @@ if model == 'LSTM':
     df, resid_df = process_dfs(df, forecast_demand_df)
     plot_results(df, save_path, 'LSTM', model)
     plot_resids(resid_df, save_path, 'LSTM', model)
+    display_metrics(df)
 
 
 elif model == 'Ensemble':
     # LSTM-SARIMAX ensemble
-    csv_path = data_folder
+    csv_path = cwd / 'Ensemble_files'
     save_path = root_folder / 'Results' / 'ensemble'
-    df = pd.read_csv(csv_path / 'test_ensemble_final.csv')
+    df = pd.read_csv(csv_path / 'test_ensemble_final_without_AEMO.csv')
     df = df.drop(columns=['sarimax_peak_value_predicted', 'sarimax_peak_time_predicted','lstm_peak_value_predicted', 'lstm_peak_time_predicted',])
     df = df.rename(columns={'actual_peak_value': 'true_peak', 'actual_peak_time': 'true_peak_time', 'ensemble_peak_value_predicted': 'pred_peak', 'ensemble_peak_time_predicted': 'pred_peak_time'})
 
     df, resid_df = process_dfs(df, forecast_demand_df)
     plot_results(df, save_path, 'Ensemble', model)
     plot_resids(resid_df, save_path, 'Ensemble', model)
+    display_metrics(df)
+
 
 
 elif model == 'Ensemble_nr':
     # LSTM-SARIMAX-AEMO ensemble
-    csv_path = cwd / 'AEMO_files'
+    csv_path = cwd / 'Ensemble_files'
     save_path = root_folder / 'Results' / 'ensemble'
-    df = pd.read_csv(csv_path / 'test_ensemble_final_norestriciton.csv')
+    df = pd.read_csv(csv_path / 'test_ensemble_final_with_AEMO.csv')
     df = df.drop(columns=['sarimax_peak_value_predicted', 'sarimax_peak_time_predicted','lstm_peak_value_predicted', 'lstm_peak_time_predicted',])
     df = df.rename(columns={'actual_peak_value': 'true_peak', 'actual_peak_time': 'true_peak_time', 'ensemble_peak_value_predicted': 'pred_peak', 'ensemble_peak_time_predicted': 'pred_peak_time'})
 
     df, resid_df = process_dfs(df, forecast_demand_df)
     plot_results(df, save_path, 'Ensemble', model)
     plot_resids(resid_df, save_path, 'Ensemble', model)
+    display_metrics(df)
 
 
 elif model == 'SARIMAX':
@@ -222,6 +237,7 @@ elif model == 'SARIMAX':
     df_final, resid_df = process_dfs(df_final, forecast_demand_df)
     plot_results(df_final, save_path, 'sarimax_test', model)
     plot_resids(resid_df, save_path, 'sarimax_test', model)
+    display_metrics(df_final)
 
 elif model == 'AEMO':
     # can be used for plotting peak magnitudes and times over time
@@ -232,3 +248,50 @@ elif model == 'AEMO':
     df = df[df['date'] >= '03/12/2020']
     df, resid_df = process_dfs(df, forecast_demand_df)
     plot_results(df, save_path, 'aemo', model)
+    display_metrics(df)
+
+"""
+# calculate test stats
+csv_path = cwd / 'Ensemble_files'
+df = pd.read_csv(csv_path / 'test_ensemble_final_with_AEMO.csv')
+
+print(df.head())
+print(df.columns)
+time_cols = ['sarimax_peak_time_predicted', 'lstm_peak_time_predicted',
+       'actual_peak_time', 'AEMO_peak_time_predicted', 'ensemble_peak_time_predicted', ]
+df[time_cols] = df[time_cols].apply(pd.to_datetime)
+df[time_cols] = df[time_cols].astype(int) #time in nanoseconds
+df[time_cols] = (df[time_cols]/1e9)/60 #time in mins
+df['date'] = pd.to_datetime(df['date'])
+
+print('\nSARIMAX')
+print('MAGNITUDE')
+print('MSE: ', mean_squared_error(df['actual_peak_value'], df['sarimax_peak_value_predicted']))
+print('MAE: ', mean_absolute_error(df['actual_peak_value'], df['sarimax_peak_value_predicted']))
+print('MAPE: ', (mean_absolute_percentage_error(df['actual_peak_value'], df['sarimax_peak_value_predicted'])*100))
+print('TIME')
+print('MSE: ', mean_squared_error(df['actual_peak_time'], df['sarimax_peak_time_predicted']))
+print('MAE: ', mean_absolute_error(df['actual_peak_time'], df['sarimax_peak_time_predicted']))
+
+print('\n\nLSTM')
+print('MAGNITUDE')
+print('MSE: ', mean_squared_error(df['actual_peak_value'], df['lstm_peak_value_predicted']))
+print('MAE: ', mean_absolute_error(df['actual_peak_value'], df['lstm_peak_value_predicted']))
+print('MAPE: ', (mean_absolute_percentage_error(df['actual_peak_value'], df['lstm_peak_value_predicted'])*100))
+print('TIME')
+print('MSE: ', mean_squared_error(df['actual_peak_time'], df['lstm_peak_time_predicted']))
+print('MAE: ', mean_absolute_error(df['actual_peak_time'], df['lstm_peak_time_predicted']))
+
+
+df2 = pd.read_csv(csv_path / 'lstm_test.csv')
+print('\nMSE: ', mean_squared_error(df2['true_demand'], df2['lstm_pred_demand']))
+print('MAE: ', mean_absolute_error(df2['true_demand'], df2['lstm_pred_demand']))
+print('MAPE: ', (mean_absolute_percentage_error(df2['true_demand'], df2['lstm_pred_demand'])*100))
+
+csv_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'
+
+df3 = pd.read_csv(csv_path / 'dropped_8_test.csv')
+
+print('\nMSE: ', mean_squared_error(df3['true_peak'], df3['pred_peak']))
+print('MAE: ', mean_absolute_error(df3['true_peak'], df3['pred_peak']))
+print('MAPE: ', (mean_absolute_percentage_error(df3['true_peak'], df3['pred_peak'])*100))"""

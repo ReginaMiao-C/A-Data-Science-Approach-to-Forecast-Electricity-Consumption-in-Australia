@@ -29,11 +29,11 @@ def process_dfs(df, aemo_df, df_format='%Y-%m-%d'):
     df_comb = pd.merge(df_filtered, aemo_df_filtered, on='date', how='left')
     return df, df_comb
 
-def plot_results(df, res_path, model_name, label='LSTM Prediction'):
+def plot_results(df, res_path, model_name, model):
     df['resid'] = df['true_peak'] - df['pred_peak']
     fig, axs = plt.subplots(2, 1, figsize=(12, 6))
     sns.lineplot(df, x='date', y='true_peak', color='orange', ax = axs[0], label='True Value')
-    sns.lineplot(df, x='date', y='pred_peak', color='sienna', ax = axs[0], linestyle='--', label=label, linewidth=1)
+    sns.lineplot(df, x='date', y='pred_peak', color='sienna', ax = axs[0], linestyle='--', label=model_name, linewidth=1)
     axs[0].legend()
     sns.scatterplot(df, x='date', y='resid', color='sienna', ax = axs[1], alpha=0.6)
     axs[0].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
@@ -49,7 +49,7 @@ def plot_results(df, res_path, model_name, label='LSTM Prediction'):
     axs[1].set_ylabel('Residuals (MW)')
     plt.suptitle('Peak Demand Forecast')
     plt.tight_layout()
-    img_name = 'pred_vs_actual_' + model_name
+    img_name = 'pred_vs_actual_' + model
     plt.savefig(res_path / img_name)
     plt.close()
 
@@ -58,7 +58,7 @@ def plot_results(df, res_path, model_name, label='LSTM Prediction'):
     df['pred_peak_time'] = pd.to_datetime('1970-01-01 ' + df['pred_peak_time'].dt.time.astype(str))
     fig, axs = plt.subplots(2, 1, figsize=(12, 6))
     sns.lineplot(df, x='date', y='true_peak_time', color='orange', label='True Value', ax = axs[0])
-    sns.lineplot(df, x='date', y='pred_peak_time', color='sienna',  ax = axs[0], linestyle='--', label=label, linewidth=1)
+    sns.lineplot(df, x='date', y='pred_peak_time', color='sienna',  ax = axs[0], linestyle='--', label=model_name, linewidth=1)
     axs[0].legend()
     sns.scatterplot(df, x='date', y='time_resid', color='sienna', ax = axs[1], alpha=0.6, zorder=2)
     axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
@@ -75,7 +75,7 @@ def plot_results(df, res_path, model_name, label='LSTM Prediction'):
     axs[1].grid(axis='y', linestyle='--', color='lightgrey', zorder=0)
     plt.suptitle('Time of Peak Demand Forecast')
     plt.tight_layout()
-    img_name = 'pred_vs_actual_time_' + model_name
+    img_name = 'pred_vs_actual_time_' + model
     plt.savefig(res_path / img_name)
     plt.close()
 
@@ -90,9 +90,9 @@ def plot_resids(df, res_path, model_name, model):
     fig, axs = plt.subplots(2, 1, figsize=(12, 8))
     sns.scatterplot(df_diff, x='date', y='differences', color='salmon', ax=axs[1], alpha=0.7)
 
-    df = df.rename(columns={'pred_resid': model, 'aemo_resid': 'AEMO'})
-    df = df.melt(id_vars='date', value_vars=[model, 'AEMO'], var_name='Prediction', value_name='Peak Electricity Demand')
-    pred_colors = {model:'peru', 'AEMO':'brown'}
+    df = df.rename(columns={'pred_resid': model_name, 'aemo_resid': 'AEMO'})
+    df = df.melt(id_vars='date', value_vars=[model_name, 'AEMO'], var_name='Prediction', value_name='Peak Electricity Demand')
+    pred_colors = {model_name:'peru', 'AEMO':'brown'}
     sns.lineplot(df, x='date', y='Peak Electricity Demand', hue='Prediction', palette=pred_colors, ax=axs[0])
     axs[0].axhline(0, color='grey', linestyle=':', zorder=1) 
     axs[1].axhline(0, color='grey', linestyle=':', zorder=1) 
@@ -107,10 +107,10 @@ def plot_resids(df, res_path, model_name, model):
     axs[1].xaxis.set_minor_locator(mdates.MonthLocator(interval=1))
     axs[0].grid(axis='x', linestyle='--', color='lightgrey', zorder=0, which='both')
     axs[1].grid(axis='x', linestyle='--', color='lightgrey', zorder=0)
-    title_str ='Forecast Residuals (AEMO vs ' + model + ')'
+    title_str ='Forecast Residuals (AEMO vs ' + model_name + ')'
     plt.suptitle(title_str)
     plt.tight_layout()
-    img_name = 'residual_comparison_' + model_name
+    img_name = 'residual_comparison_' + model
     plt.savefig(res_path / img_name)
     plt.close()
     print(df_diff['differences'].sum())
@@ -123,18 +123,17 @@ data_folder = root_folder / 'data'
 forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
 # Ensemble/Ensemble_nr/LSTM/SARIMAX/AEMO
-model = 'Ensemble_nr'
+model = 'Ensemble'
 
 if model == 'LSTM':
-    # best final model
     csv_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'
-    save_path = csv_path
+    save_path = root_folder / 'Results' / 'LSTM'
 
     df = pd.read_csv(csv_path / 'dropped_8_test.csv')
     forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
     df, resid_df = process_dfs(df, forecast_demand_df)
-    plot_results(df, save_path, '8_test')
-    plot_resids(resid_df, save_path, '8_test', model)
+    plot_results(df, save_path, 'LSTM', model)
+    plot_resids(resid_df, save_path, 'LSTM', model)
 
 
 elif model == 'Ensemble':
@@ -146,8 +145,8 @@ elif model == 'Ensemble':
     df = df.rename(columns={'actual_peak_value': 'true_peak', 'actual_peak_time': 'true_peak_time', 'ensemble_peak_value_predicted': 'pred_peak', 'ensemble_peak_time_predicted': 'pred_peak_time'})
 
     df, resid_df = process_dfs(df, forecast_demand_df)
-    plot_results(df, save_path, 'ensemble_test')
-    plot_resids(resid_df, save_path, 'ensemble_test', model)
+    plot_results(df, save_path, 'Ensemble', model)
+    plot_resids(resid_df, save_path, 'Ensemble', model)
 
 
 elif model == 'Ensemble_nr':
@@ -159,14 +158,16 @@ elif model == 'Ensemble_nr':
     df = df.rename(columns={'actual_peak_value': 'true_peak', 'actual_peak_time': 'true_peak_time', 'ensemble_peak_value_predicted': 'pred_peak', 'ensemble_peak_time_predicted': 'pred_peak_time'})
 
     df, resid_df = process_dfs(df, forecast_demand_df)
-    plot_results(df, save_path, 'ensemble_test_nr')
-    plot_resids(resid_df, save_path, 'ensemble_test_nr', model)
+    plot_results(df, save_path, 'Ensemble', model)
+    plot_resids(resid_df, save_path, 'Ensemble', model)
 
 
 elif model == 'SARIMAX':
     csv_path = cwd / 'SARIMAX' / "data"
     save_path = root_folder / 'Results' / 'SARIMAX'
     df = pd.read_csv(csv_path / 'daily_data_with_exog2026-04-24.csv')
+
+    # processing data
     df = df[['eval_date', 'peak_actual_afternoon', 'peak_predicted_afternoon_mean', 'time_of_peak_actual_afternoon', 'time_of_peak_predicted_afternoon', 'peak_actual_morning', 'peak_predicted_morning_mean', 'time_of_peak_actual_morning', 'time_of_peak_predicted_morning']]
     df['eval_date'] = pd.to_datetime(df['eval_date'])
     #df = df[df['eval_date'].dt.year == 2020]
@@ -195,7 +196,7 @@ elif model == 'SARIMAX':
 
     forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
     df_final, resid_df = process_dfs(df_final, forecast_demand_df)
-    plot_results(df_final, save_path, 'sarimax_test', "SARIMAX Predictions")
+    plot_results(df_final, save_path, 'sarimax_test', model)
     plot_resids(resid_df, save_path, 'sarimax_test', model)
 
 elif model == 'AEMO':
@@ -205,4 +206,4 @@ elif model == 'AEMO':
     df['date'] = pd.to_datetime(df['date'])
     df = df[df['date'] >= '03/12/2020']
     df, resid_df = process_dfs(df, forecast_demand_df)
-    plot_results(df, save_path, 'aemo')
+    plot_results(df, save_path, 'aemo', model)

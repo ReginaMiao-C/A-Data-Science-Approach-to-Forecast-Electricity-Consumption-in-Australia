@@ -12,7 +12,7 @@ def scatterplot_matrix(df, img_folder, img_name, colour):
     """
     scatterplot matrix of all numerical variables in dataframe
     """
-    var_labels = ['Rainfall', 'PV Capacity', 'Temperature', 'Solar Irradiance', 'Total Power']
+    var_labels = ['Rainfall', 'PV Installation', 'Temperature', 'Solar Irradiance', 'Total Power']
     p = sns.pairplot(df, plot_kws={'alpha': 0.6, 's': 10}, hue='season', palette='Spectral')
     p.x_vars = var_labels
     p.y_vars = var_labels
@@ -26,7 +26,7 @@ def corr_matrix (df, peak_df, img_folder):
     """
     correlation matrix of all numerical variables in dataframe
     """
-    var_labels = ['Rainfall', 'PV Capacity', 'Temperature', 'Solar Irradiance', 'Total Power']
+    var_labels = ['Rainfall', 'PV Installation', 'Temperature', 'Solar Irradiance', 'Total Power']
     # correlation matrices split by season
     fig, axs = plt.subplots(2, 2, figsize=(12,12))
     for i in range(4):
@@ -168,11 +168,11 @@ def demand_time_all(df, peak_df, img_folder):
     """
     jan_1 = df[(df['date'].dt.month == 1) & (df['date'].dt.day == 1)]['date']
     plt.figure(figsize=(12, 5))
-    axs = sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None, color=vc['all'], zorder=2, label='Power Demand')
+    axs = sns.lineplot(df, x='date', y='total_demand', lw=1, errorbar=None, color=vc['all'], zorder=2, label='Total Demand')
     sns.lineplot(peak_df, x='date', y='total_demand', lw=1, errorbar=None, color=vc['peak'], zorder=3, ax=axs, label='Peak Demand')
     for l in jan_1:
         plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
-    plt.title('Demand')
+    plt.ylabel('Electricity Demand (MW)')
     axs.legend()
     plt.savefig(img_folder / 'demand_time')
     plt.close()
@@ -313,25 +313,25 @@ forecast_demand_df = pd.read_csv(data_folder / 'peak_forecasts.csv')
 
 
 # explore relationships between variables
-#scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison', vc['all'])
-#scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison', vc['peak'])
-#corr_matrix (demand_df, peak_demand_df, img_folder)
+scatterplot_matrix(demand_df, img_folder, 'demand_var_comparison', vc['all'])
+scatterplot_matrix(peak_demand_df, img_folder, 'peak_demand_var_comparison', vc['peak'])
+corr_matrix (demand_df, peak_demand_df, img_folder)
 
 # explore variable distributions
 var_distributions(demand_df, peak_demand_df, img_folder)
 
 # explore temporal distributions
-#demand_time(peak_demand_df, img_folder)
-#demand_time_all(demand_df, peak_demand_df, img_folder)
-#daily_stats(demand_df, peak_demand_df, img_folder)
+demand_time(peak_demand_df, img_folder)
+demand_time_all(demand_df, peak_demand_df, img_folder)
+daily_stats(demand_df, peak_demand_df, img_folder)
 
 # plot AEMO forecast distributions
-#aemo_forecast(forecast_demand_df, img_folder)
+aemo_forecast(forecast_demand_df, img_folder)
 
 # reports of variable distribution statistics
-#statistic_reports(demand_df, peak_demand_df, 'rainfall', stats_path)
-#statistic_reports(demand_df, peak_demand_df, 'pv_capacity', stats_path)
-#statistic_reports(demand_df, peak_demand_df, 'temperature', stats_path)
-#statistic_reports(demand_df, peak_demand_df, 'solar_power', stats_path)
-#statistic_reports(demand_df, peak_demand_df, 'total_demand', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'rainfall', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'pv_capacity', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'temperature', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'solar_power', stats_path)
+statistic_reports(demand_df, peak_demand_df, 'total_demand', stats_path)
 

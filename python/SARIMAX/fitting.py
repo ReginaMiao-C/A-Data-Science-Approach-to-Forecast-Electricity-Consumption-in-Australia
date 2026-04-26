@@ -13,18 +13,11 @@ import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
-from statsmodels.tsa.stattools import adfuller, kpss
-from statsmodels.tsa.seasonal import STL
+from scipy.stats import skew, kurtosis
 from statsmodels.graphics.gofplots import qqplot
-
 from statsforecast.models import AutoARIMA
-from statsforecast import StatsForecast
-from scipy.stats import norm
-
 from coreforecast.scalers import boxcox_lambda, boxcox
-
 from python.public_holidays import get_holidays
-
 from python.colour_dict import *
 
 
@@ -35,7 +28,7 @@ def fourier_series(dates, period, K, t0):
     :param period: Period of the fourier series (in minutes)
     :param K: Order of the fourier series (typically 1-3)
     :param t0: Origin of time series
-    :return:
+    :return: dataframe of fourier series
     """
 
     t = (dates - t0).total_seconds() / 60  # minutes since t0
@@ -50,12 +43,17 @@ def fourier_series(dates, period, K, t0):
 
 def get_stats(model, exog_titles, _print=True):
     """
-    Try to recreate the statistical information that R produces
 
-    args: model the fitted model with the information inside it
-    exog_titles: titles to use for the exog varibles.
+    Generates the statistics about the SARIMA/X model coefficients.
+
+    :param model: statsforecast ARIMA model for analysis
+    :param exog_titles: list of exogenous variable names
+    :param _print: boolean if the data should be printed to the console as well.
+    :return: dataframe of results including the coeffecient value, z-score, p-value and the significance code
+            that R would use.
     """
 
+    # whether the model comes from the outer wrapper Forecast class.
     try:
         fitted = model.fitted_[0][0].model_
     except:
@@ -73,7 +71,6 @@ def get_stats(model, exog_titles, _print=True):
     p_values = 2 * (1 - stats.norm.cdf(np.abs(z_stats)))
 
     if _print:
-
         print(f"\n{'':>10s} {'Coef':>10s}   {'Std Err':>5s}{'z':>10s}  {'p-value':>10s} |  {'Sig':>5s}")
         print("-" * 55)
 
@@ -112,27 +109,14 @@ def get_stats(model, exog_titles, _print=True):
     return pd.DataFrame.from_dict(results)
 
 
-def difference_testing(data, seasonal_value):
-    adf_p = adfuller(data)[1]
-    kpss_p = kpss(data, regression='c', nlags='auto')[1]
-
-    print("ADF p:", adf_p, " | KPSS p:", kpss_p)
-
-    data_diff = data.diff().dropna()
-
-    adf_p = adfuller(data_diff)[1]
-    kpss_p = kpss(data_diff, regression='c', nlags='auto')[1]
-
-    print("ADF p:", adf_p, " | KPSS p:", kpss_p)
-
-    data_seasonal = data.diff(seasonal_value).dropna()
-    adf_p = adfuller(data_seasonal)[1]
-    kpss_p = kpss(data_seasonal, nlags='auto')[1]
-
-    print("ADF p:", adf_p, " | KPSS p:", kpss_p)
-
-
 def get_data_normalised(data_folder):
+
+    """
+    Produces the data in a normalised form, with demand log-transformed.
+    :param data_folder: Path to the folder containing the data
+    :return: dataframe of the data
+    """
+
     # load and use the datetime column to set the index:
     data = pd.read_csv(data_folder / "all_data_30min.csv")
     data["datetime"] = pd.to_datetime(data["datetime"], yearfirst=True)
@@ -182,6 +166,7 @@ def get_data_normalised(data_folder):
     weekly_terms = fourier_series(data.index, 7 * 48, K=1, t0=data.index[0])
     yearly_tersm = fourier_series(data.index, 365*48, K=1, t0=data.index[0])
 
+    # generate the seasonal data with a Fourier term to sensitise the data to the time location.
     data["temp_1S"] = data["temperature"].shift(1).values*yearly_tersm["sin_17520_1"]
     data["temp_9S"] = data["temperature"].shift(9).values*yearly_tersm["sin_17520_1"]
     data["solar_4S"] = data["solar_power"].shift(4).values*yearly_tersm["sin_17520_1"]
@@ -199,7 +184,13 @@ def get_data_normalised(data_folder):
 
 
 def get_data(data_folder):
-    # load and use the datetime column to set the index:
+    """
+    Gather the data and calculate additional terms, including holidays and weekdays, and lagged variables.
+    Data is not transformed in any other way.
+    :param data_folder: Path to the folder containing the data
+    :return: dataframe of data.
+    """
+
     data = pd.read_csv(data_folder / "all_data_30min.csv")
     data["datetime"] = pd.to_datetime(data["datetime"], yearfirst=True)
     data.index = data["datetime"]
@@ -257,6 +248,16 @@ def main():
 
 
 def run_date_section(data, start, training_window, evaluation_window, using_exog=False):
+    """
+    Runs the date section using the limited AutoArima process to to determine the SARIMA values that will optimise
+    the search space based on the AICC value.
+    :param data: Dataframe of data, all variables needed for the regression
+    :param start: Datetime object that the analysis will start from
+    :param training_window: Number of days between start and end of the training data
+    :param evaluation_window: Number of days between start and end of the evaluation data
+    :param using_exog: Whether to use exogenous variables
+    :return: dictionary of values, including the best order and information about that model (AIC loglik etc)
+    """
 
     print(f"running:{start}:{using_exog}")
 
@@ -301,7 +302,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     for k, v in coefs.items():
         print(f"    {k:>8s} = {v:.6f}")
 
-    # Forecast for the out-of-bag testing, include transform back to real space (from log).
+    # Forecast for the out-of-bag testing
     if using_exog:
         forecast_sf = sf.predict(h=testing_set.shape[0],
                                  X=testing_set.drop(columns=["total_demand"], axis=1).to_numpy(),
@@ -312,6 +313,7 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     forecast = forecast_sf["mean"]
     actuals =  data[mask_test]["total_demand"].values
+
     # calculate some values for the assessment of the model accuracy.
     mse = np.mean((actuals - forecast) ** 2)
     mape = mean_absolute_percentage_error(actuals, forecast)
@@ -331,38 +333,37 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
 
     return results
 
+def run_auto_fit(data, root_folder, cores=None):
+    """
+    High level runner for the analysis of the ARIMA variables, note contains hard-coded dates for analysis
+    :param data: Dataframe of data, all variables needed for the regression
+    :param root_folder: folder to save data into.
+    :param cores: number of cores to use, None and <2 is single core.
+    :return: None, information is saved as a csv file to the data directory
+    """
 
-def boxcox_backtransform_biasadj(fc_mean, fc_lower, fc_upper, lam):
-    #Back-transform Box-Cox forecast with bias adjustment (https://robjhyndman.com/hyndsight/backtransforming/).
-
-    # estimate the variance:
-    z = norm.ppf(0.975)
-    fvar = ((fc_upper - fc_lower) / (2 * z)) ** 2
-    # calculate the mean
-    mean_orig = np.power(lam * fc_mean + 1, 1 / lam)
-    # adjust the mean.
-    adjusted_mean = mean_orig * (1 + 0.5 * fvar * (1 - lam) / (mean_orig ** (2 * lam)))
-
-    return adjusted_mean
-
-
-def run_auto_fit(data):
 
     years = [2017,2018]
     months = [1,3,6,9]
 
+    # values in days for use in deltatime.
     training_window = 8*7
     evaluation_window = 1
 
+    is_exog = [True, False]
+
+    # build the functional arguments for use the in the multiprocessor.
     func_args = [(data, datetime.datetime(year=year, month=month, day=1), training_window, evaluation_window, exog)
-                 for (year, month, exog) in itertools.product(years, months, [True, False])]
+                 for (year, month, exog) in itertools.product(years, months, is_exog)]
 
-    # single threaded version:
-    #for args in func_args:
-    #    results = run_date_section(*args)
-
-    with Pool(16) as pool:
-        results = pool.starmap(run_date_section, func_args)
+    if cores is None or cores <2:
+        results = []
+        for args in func_args:
+            result = run_date_section(*args)
+            results.append(result)
+    else:
+        with Pool(cores) as pool:
+            results = pool.starmap(run_date_section, func_args)
 
     df = pd.DataFrame(results)
     df.sort_values(by=["year", "month"], inplace=True)
@@ -377,15 +378,58 @@ def run_auto_fit(data):
         df.to_csv(r"C:\Temp\file.csv", index=False)
 
 
+def box_cox_picture(data, start, timedelta, root_folder):
+    """
+    Creates the QQ plots for the data and the box-cox transformed data for the report.
+   :param data: Dataframe of data, all variables needed for the regression
+   :param start: start date for the analysis
+   :param timedelta: number of cores to use, None and <2 is single core.
+   :param root_folder: folder to save data into.
+   :return: None, images are saved to the figures file.
+   """
+
+    end = start + datetime.timedelta(days=timedelta)
+    mask_train = (data.index >= start) & (data.index < end)
+
+    # automatically determine the best box-box lambda value using the log-likelihood method.
+    bcl = boxcox_lambda(data["total_demand"][mask_train], method="loglik")
+    data_to_plot = data["total_demand"][mask_train]
+    data_to_plot_auto = boxcox(data_to_plot.values, bcl)
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 8))
+
+    # QQ plots with the colours set from the dictionary
+    qqplot(data_to_plot, marker="o", color=demand_cols["all"], line="s", markerfacecolor=demand_cols["all"],
+           markeredgecolor=demand_cols["all"], ax=ax[0])
+    qqplot(data_to_plot_auto, marker="o", color=demand_cols["all"], line="s", markerfacecolor=demand_cols["all"],
+           markeredgecolor=demand_cols["all"], ax=ax[1])
+
+    # make the plot look a little better.
+    ax[0].grid(True, axis='y', linestyle='--', alpha=0.5)
+    ax[0].lines[1].set_color('black')
+    ax[0].lines[1].set_linewidth(2)
+    ax[0].title.set_text("Total Demand (Testing Data, Original)")
+
+    ax[1].grid(True, axis='y', linestyle='--', alpha=0.5)
+    ax[1].lines[1].set_color('black')
+    ax[1].lines[1].set_linewidth(2)
+    ax[1].set_title(f"Total Demand (Testing Data, Transformed Box-Cox ($\\lambda = {bcl:.3f}$))")
+
+    plt.savefig(root_folder / "figures" / "qq_plot_masked_bc_transform_together.png")
+
+    # print some stats which might be useful.
+    print(skew(data_to_plot), skew(data_to_plot_auto))
+    print(kurtosis(data_to_plot), kurtosis(data_to_plot_auto))
+
+
 
 # Using the special variable
 if __name__=="__main__":
 
     freeze_support()
 
-    # not using the decomp
-    decomposition = False
-    sweep_no_exo = True
+    # flags to set for the running of the code, either or both of the box-cox plots or the autoarima process.
+    sweep_var = False
     bc_pics = False
 
     cwd = Path.cwd()
@@ -393,57 +437,16 @@ if __name__=="__main__":
     data_folder = root_folder / "data"
     data = get_data(data_folder)
 
-    #reduce peaks in capacity KW->MW.
+    #reduce peaks in capacity as it stabilise the solver.
     data["pv_capacity"]= data["pv_capacity"]/1000
-    #data.drop(columns=["lag_48*7", "pv_capacity"], inplace=True)
 
     if bc_pics:
-
-        start = datetime.datetime(2018, 1, 1)
-        end = start + datetime.timedelta(days=70)
-        mask_train = (data.index >= start) & (data.index < end)
-
-        bcl = boxcox_lambda(data["total_demand"][mask_train], method="loglik")
-
-        data_to_plot = data["total_demand"][mask_train]
-
-        data_to_plot_auto = boxcox(data_to_plot.values, bcl)
-        data_to_plot_log = boxcox(data_to_plot.values, 0)
-
-        fig, ax = plt.subplots(1, 2, figsize=(12,8))
-
-        qqplot(data_to_plot, marker="o", color=demand_cols["all"], line="s", markerfacecolor=demand_cols["all"],
-              markeredgecolor=demand_cols["all"], ax=ax[0])
-
-        qqplot(data_to_plot_auto, marker="o", color=demand_cols["all"], line="s", markerfacecolor=demand_cols["all"],
-               markeredgecolor=demand_cols["all"], ax=ax[1])
-
-        ax[0].grid(True, axis='y', linestyle='--', alpha=0.5)
-        ax[0].lines[1].set_color('black')
-        ax[0].lines[1].set_linewidth(2)
-        ax[0].title.set_text("Total Demand (Testing Data, Original)")
-
-        ax[1].grid(True, axis='y', linestyle='--', alpha=0.5)
-        ax[1].lines[1].set_color('black')
-        ax[1].lines[1].set_linewidth(2)
-        ax[1].set_title(f"Total Demand (Testing Data, Transformed Box-Cox ($\\lambda = {bcl:.3f}$))")
-
-        plt.savefig(root_folder / "figures" /"qq_plot_masked_bc_transform_together.png")
-
-        from scipy.stats import skew, kurtosis
-
-        print(skew(data_to_plot), skew(data_to_plot_auto))
-        print(kurtosis(data_to_plot), kurtosis(data_to_plot_auto))
-
-    if sweep_no_exo:
-        run_auto_fit(data)
+       start = datetime.datetime(2018, 1, 1)
+       box_cox_picture(data, start, datetime.timedelta(days=365), root_folder)
 
 
-    if decomposition:
-        stl = STL(data["total_demand"].iloc[start:end], period=48)
-        res = stl.fit()
-        fig = res.plot()
+    if sweep_var:
+        run_auto_fit(data, root_folder, cores=20)
 
-        plt.show()
 
 

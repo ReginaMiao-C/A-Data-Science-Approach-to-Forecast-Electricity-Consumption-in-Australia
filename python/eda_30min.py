@@ -1,21 +1,15 @@
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-import matplotlib as mpl
 import python.colour_dict as cd
 from public_holidays import get_holidays
-import matplotlib.patches as mpatches
+from colour_dict import day_colors
 
-def cross_corr(x, y):
-    x = (x - np.mean(x)) / np.std(x)
-    y = (y - np.mean(y)) / np.std(y)
-    return np.correlate(x, y, mode='full')
 
 def determine_lags(data, left, right, max_lags=48, top_n=5):
-
     """
     Functon to determine the lags needed to best correlate the left and right columns of the data.
     :param data: Dataframe of date
@@ -29,7 +23,11 @@ def determine_lags(data, left, right, max_lags=48, top_n=5):
     x = data[left].values
     y = data[right].values
 
-    corr = cross_corr(x, y)
+    # normalise the data, to assist in the correlation finding
+    x = (x - np.mean(x)) / np.std(x)
+    y = (y - np.mean(y)) / np.std(y)
+
+    corr = np.correlate(x, y, mode='full')
     lags = np.arange(-len(x) + 1, len(x))
 
     # Keep only positive lags and those less than the maximum
@@ -69,7 +67,7 @@ def triplot(dataframe, location_to_save, filler=False, _title=None):
         lines = ax.get_lines()
         plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["all"], alpha=0.1)
 
-    ax1.set_ylabel("Power Demand (MW)", color=cd.demand_cols["all"])
+    ax1.set_ylabel("Electricity Demand (MW)", color=cd.demand_cols["all"])
     ax1.set_xlabel("Hour of Day")
 
     # Second axis (Temp)
@@ -110,55 +108,59 @@ def triplot(dataframe, location_to_save, filler=False, _title=None):
         plt.show()
 
 
-cwd = Path.cwd()
-root_folder = cwd.parent
-data_folder = root_folder / "data"
+def seasonal_triplots(data, sve_lction,  days_buffer):
+    """
+    Plots of the seasonal data based on the equinox/solstice, triplots of the power, temp and solar irradiance.
 
-# stack of date/time varibles need to analysed so just pool them into one big blob
-data = pd.read_csv(data_folder / "all_data_30min.csv")
-data["datetime"] = pd.to_datetime(data["datetime"], yearfirst=True)
-data.index = data["datetime"]
-data["date"] = data["datetime"].dt.date
-data["day_of_the_year"] = data["datetime"].dt.dayofyear
-data["hour_of_day"] = data["datetime"].dt.hour + data["datetime"].dt.minute/60
-data['hour'] = data['datetime'].dt.hour
-data['day'] = data['datetime'].dt.day_name()
-data["year"] = data["datetime"].dt.year
-days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-#data.drop("datetime", axis=1, inplace=True)
+    :param data: dataframe of data
+    :param days_buffer: number of days either side of the critcal day to assess
+    :param sve_lction: folder to save the images in
+    :return: None. Saves data to the folder
 
-data = data.iloc[100:, :]
+    """
 
-day_group = data.groupby("day")
+    # dates for the different seasonal points from January 1.
+    autumn_equinox = 81
+    winter_solstice = 172
+    spring_equinox = 264
+    summer_solstice = 355
 
-plt.figure(figsize=(12, 8))
+    winter_data = data.drop(columns=["day", "date"], inplace=False)[
+        (winter_solstice - days_buffer < data["day_of_the_year"]) & (winter_solstice + days_buffer > data["day_of_the_year"])].groupby(
+        "hour_of_day").mean()
+    spring_data = data.drop(columns=["day", "date"], inplace=False)[
+        (spring_equinox - days_buffer < data["day_of_the_year"]) & (spring_equinox + days_buffer > data["day_of_the_year"])].groupby(
+        "hour_of_day").mean()
+    summer_data = data.drop(columns=["day", "date"], inplace=False)[
+        (summer_solstice - days_buffer < data["day_of_the_year"]) & (summer_solstice + days_buffer > data["day_of_the_year"])].groupby(
+        "hour_of_day").mean()
+    autumn_data = data.drop(columns=["day", "date"], inplace=False)[
+        (autumn_equinox - days_buffer < data["day_of_the_year"]) & (autumn_equinox + days_buffer > data["day_of_the_year"])].groupby(
+        "hour_of_day").mean()
 
-day_colors = {
-    'Monday': 'tab:blue',
-    'Tuesday': 'tab:orange',
-    'Wednesday': 'tab:green',
-    'Thursday': 'tab:red',
-    'Friday': 'tab:purple',
-    'Saturday': 'tab:brown',
-    'Sunday': 'tab:pink'
-}
+    # print some information about the lags:
+    print(f"Winter lags vs Temperature: {determine_lags(winter_data, "total_demand", "temperature")}")
+    print(f"Winter lags vs Solar Irradiance: {determine_lags(winter_data, "total_demand", "solar_power")}")
 
-plt.figure(figsize=(12, 5))
-axs = sns.lineplot(data=data, x="day_of_the_year", y="total_demand", color=cd.demand_cols["all"], label='Power Demand')
-plt.xlabel("Day of the Year")
-plt.ylabel("Electrical Power Demand (MW)")
-for l in range(50, 400,50):
-    plt.axvline(x=l, color='lightgrey', linestyle='--', lw=0.5, zorder=1)
+    print(f"Summer lags vs Temperature: {determine_lags(summer_data, "total_demand", "temperature")}")
+    print(f"Summer lags vs Solar Irradiance: {determine_lags(summer_data, "total_demand", "solar_power")}")
 
-dummy_patch = mpatches.Patch(color=cd.demand_cols["all"], alpha=0.2, label="95% CI")
-axs.legend(handles=[axs.lines[0], dummy_patch])
-plt.savefig(root_folder / "figures" / "daily_variation.png")
+    mean_daily = data.drop(columns=["day", "date"], inplace=False).groupby("hour_of_day").mean()
+
+    triplot(winter_data, sve_lction /  "winter_solstice.png", _title="Winter Solstice")
+    triplot(summer_data, sve_lction / "summer_solstice.png", _title="Summer Solstice")
+    triplot(spring_data, sve_lction / "spring_equinox.png", _title="Spring Equinox")
+    triplot(autumn_data, sve_lction / "autumn_equinox.png", _title="Autumn Equinox")
+    triplot(mean_daily, sve_lction / "mean_daily.png", _title="Mean Daily")
 
 
-if False:
-
-    data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data[
-        "datetime"].dt.dayofweek * 24
+def hour_of_the_week(data, sve_lction):
+    """
+    Plot of the data over a week averaged over all data with CI bands directly from Seaborn
+    :param data: dataframe of data (needs to contain the parameter: hour_of_week)
+    :param sve_lction: folder to save the images in
+    :return: None. Saves images to the folder
+    """
 
     fig, ax1 = plt.subplots()
     data.groupby("hour_of_week")["total_demand"].mean().plot(color=cd.demand_cols["all"])
@@ -170,8 +172,13 @@ if False:
     plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color=cd.demand_cols["all"],
                      alpha=0.1)
     ax1.set_xlabel("Hour of the Week")
-    ax1.set_ylabel("Power Demand (MW)")
-    plt.savefig(root_folder / "figures" / "daily_mean_week_std.png")
+    ax1.set_ylabel("Electricity Demand (MW)")
+    plt.tight_layout()
+    plt.savefig(sve_lction/ "daily_mean_week_std.png")
+
+    # days in the proper order
+    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    day_group = data.groupby("day")
 
     plt.figure(figsize=(10, 6))
     for day in days_order:
@@ -182,8 +189,16 @@ if False:
     plt.xlabel("Hour of Day")
     plt.ylabel("Average Demand")
     plt.tight_layout()
-    plt.savefig(root_folder / "figures" / "day_by_day_stacked.png")
+    plt.savefig(sve_lction / "day_by_day_stacked.png")
 
+
+def effect_of_holidays(data, sve_lcatoin):
+    """
+    plots the average effect of holidays vs non-holiday on the peak demand,
+    :param data: dataframe of data
+    :param sve_lcatoin: folder to save the images in
+    :return: None, images are saved to file
+    """
 
     holidays = []
 
@@ -207,263 +222,75 @@ if False:
     # the data cleaning removed New Years 2010
     holiday_data.dropna(inplace=True, how='all', axis=0)
     holiday_data.plot()
-    plt.savefig(root_folder / "figures" / "holiday_vs_non_holiday.png")
-
-    print(determine_lags(winter_data, "total_demand", "temperature"))
-    print(determine_lags(winter_data, "total_demand", "solar_power"))
-
-    print(determine_lags(summer_data, "total_demand", "temperature"))
-    print(determine_lags(summer_data, "total_demand", "solar_power"))
-
-    print(determine_lags(data, "total_demand", "temperature", 12))
-    print(determine_lags(data, "total_demand", "solar_power", 12))
+    plt.ylabel("Average Electricity Demand")
+    plt.savefig(sve_lcatoin / "holiday_vs_non_holiday.png")
 
 
-
-    data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data[
-        "datetime"].dt.dayofweek * 24
-
-    fig, ax1 = plt.subplots()
-    data.groupby("hour_of_week").mean()["total_demand"].plot()
-    (data.groupby("hour_of_week").std()["total_demand"] + data.groupby("hour_of_week").mean()["total_demand"]).plot(
-        alpha=0.1)
-    (data.groupby("hour_of_week").mean()["total_demand"] - data.groupby("hour_of_week").std()["total_demand"]).plot(
-        alpha=0.1)
-    lines = ax1.get_lines()
-    plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='blue', alpha=0.1)
-
-    plt.savefig(root_folder / "figures" / "daily_mean_week_std.png")
-
-    winter_solstice = 172
-    spring_equinox = 264
-    summer_solstice = 355
-    autumn_equinox = 81
-
-    winter_data = data.drop(columns=["day", "date"], inplace=False)[
-        (winter_solstice - 14 < data["day_of_the_year"]) & (winter_solstice + 14 > data["day_of_the_year"])].groupby(
-        "hour_of_day").mean()
-    spring_data = data.drop(columns=["day", "date"], inplace=False)[
-        (spring_equinox - 14 < data["day_of_the_year"]) & (spring_equinox + 14 > data["day_of_the_year"])].groupby(
-        "hour_of_day").mean()
-    summer_data = data.drop(columns=["day", "date"], inplace=False)[
-        (summer_solstice - 14 < data["day_of_the_year"]) & (summer_solstice + 14 > data["day_of_the_year"])].groupby(
-        "hour_of_day").mean()
-    autumn_data = data.drop(columns=["day", "date"], inplace=False)[
-        (autumn_equinox - 14 < data["day_of_the_year"]) & (autumn_equinox + 14 > data["day_of_the_year"])].groupby(
-        "hour_of_day").mean()
-
-    mean_daily = data.drop(columns=["day", "date"], inplace=False).groupby("hour_of_day").mean()
-
-    triplot(winter_data, root_folder / "figures" / "winter_solstice.png", _title="Winter Solstice")
-    triplot(summer_data, root_folder / "figures" / "summer_solstice.png", _title="Summer Solstice")
-    triplot(spring_data, root_folder / "figures" / "spring_equinox.png", _title="Spring Equinox")
-    triplot(autumn_data, root_folder / "figures" / "autumn_equinox.png", _title="Autumn Equinox")
-    triplot(mean_daily, root_folder / "figures" / "mean_daily.png", _title="Mean Daily")
-
-    # pivot table for the plotting
-    heatmap_data = data.pivot_table(index='day', columns='hour', values='total_demand', aggfunc='mean')
-
-    # make sure the days are ordered correctly.
-    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    heatmap_data = heatmap_data.reindex(days_order)
-
-    plt.figure(figsize=(12, 6))
-    sns.heatmap(heatmap_data, cmap='viridis')
-    plt.xlabel('Hour of Day')
-    plt.ylabel('Day of Week')
-    plt.savefig(root_folder / "figures" / "heatmap_of_demand.png")
-
-    years = np.sort(data["year"].unique())
-    # drop the first and last year due to incomplete data
-    years = years[1:-2]
+def yearly_energy_usage(data, sve_lcatoin, free_axis=False):
+    """
+    Integrates the demand data to get the total usage by year.
+    :param data: Dataframe of data
+    :param sve_lcatoin: folder to save the images in
+    :param free_axis: Whether to plot the data with 0 in the y-axis, or not (good for seeing local trends vs global trends)
+    :return: None, saves data to folder.
+    """
 
     energy_by_year = []
-
-    for year in years:
+    for year in data["year"].unique():
         demand = data[data["year"] == year]["total_demand"]
         index = data[data["year"] == year].index
         # convert time interval in hours from first:
-        time = (index - index[0]).total_seconds()/(60*60)
+        time = (index - index[0]).total_seconds() / (60 * 60)
 
         # integrate to find the total energy and convert from MWhr to Petajoules
-        total_demand = np.trapezoid(demand.values, time)/10**3/277.8
+        total_demand = np.trapezoid(demand.values, time) / 10 ** 3 / 277.8
         energy_by_year.append((year, total_demand))
 
     energy_by_year = np.array(energy_by_year)
 
-    plt.plot(energy_by_year[:,0], energy_by_year[:,1])
+    plt.plot(energy_by_year[:, 0], energy_by_year[:, 1])
     plt.xlabel("Year")
     plt.ylabel("Total Energy (Petajoules)")
-    #plt.ylim([0, 300])
-    plt.savefig(root_folder / "figures" / "yearly_power_usage_free_axis.png")
+    plt.tight_layout()
 
-if False:    # Plot
-    x = data.index.weekday
-    y = data["total_demand"]
+    if not free_axis:
+        plt.ylim([0,None])
 
-    # Fit quadratic model
-    coeffs = np.polyfit(x, y, 2)
-    a, b, c = coeffs
+    plt.savefig(sve_lcatoin/"yearly_power_usage_free_axis.png")
 
-    # Predictions
-    y_pred = np.polyval(coeffs, x)
 
-    # R^2
-    ss_res = np.sum((y - y_pred)**2)
-    ss_tot = np.sum((y - np.mean(y))**2)
-    r2 = 1 - (ss_res / ss_tot)
+def main():
+    """
+    Main function to add additional information in the data array and dispatch for plotting.
+    :return: None, plots are saved to folder.
+    """
 
-    # Helper to format signs nicely
-    def fmt(val, precision=2):
-        return f"{abs(val):.{precision}f}"
 
-    sign_b = "+" if b >= 0 else "-"
-    sign_c = "+" if c >= 0 else "-"
+    cwd = Path.cwd()
+    root_folder = cwd.parent
+    data_folder = root_folder / "data"
+    sve_folder = root_folder / "figures"
 
-    # LaTeX-style equation
-    eq_text = (
-        rf"$y = {a:.2f}x^2 {sign_b} {fmt(b)}x {sign_c} {fmt(c)}$" "\n"
-        rf"$R^2 = {r2:.3f}$"
-    )
-
+    # stack of date/time varibles need to analysed so just pool them into one big blob
+    data = pd.read_csv(data_folder / "all_data_30min.csv")
+    data["datetime"] = pd.to_datetime(data["datetime"], yearfirst=True)
+    data.index = data["datetime"]
     data["date"] = data["datetime"].dt.date
-    clean_data = data.drop(columns=["datetime"])
+    data["day_of_the_year"] = data["datetime"].dt.dayofyear
+    data["hour_of_day"] = data["datetime"].dt.hour + data["datetime"].dt.minute/60
+    data['hour'] = data['datetime'].dt.hour
+    data['day'] = data['datetime'].dt.day_name()
+    data["year"] = data["datetime"].dt.year
+    data["hour_of_week"] = data["datetime"].dt.hour + data["datetime"].dt.minute / 60 + data["datetime"].dt.dayofweek * 24
 
-    maxed = data.groupby("date").max()
+    # get rid of nans.
+    data.dropna(inplace=True, how='any', axis=0)
 
-    # Extract day of year
-    maxed["day_of_year"] = maxed["datetime"].dt.dayofyear
-    norm = mpl.colors.Normalize(vmin=1, vmax=366)
-
-
-    # Scatter plot
-    plt.figure(figsize=(8, 5))
-    sns.scatterplot(
-        data=maxed,
-        x="temperature",
-        y="total_demand",
-        hue="day_of_year",
-        palette="twilight",   # good continuous colormap
-        legend=False ,       # optional (can get messy with many days)
-        hue_norm=norm,
-    )
-
-    plt.xlabel("Temperature (°C)")
-    plt.ylabel("Power (W)")
-    plt.title("Temperature vs Power")
-    plt.tight_layout()
-    plt.savefig(root_folder / "figures" / "max_daily_temp_vs_power.png")
+    seasonal_triplots(data, sve_folder, days_buffer=14)
+    hour_of_the_week(data, sve_folder)
+    yearly_energy_usage(data, sve_folder, free_axis=True)
+    effect_of_holidays(data, sve_folder)
 
 
-
-    # Scatter plot
-    plt.figure(figsize=(8, 5))
-    sns.scatterplot(
-        data=data,
-        x="solar_power",
-        y="total_demand",
-       # hue="day_of_year",
-        palette="twilight",   # good continuous colormap
-        legend=False ,       # optional (can get messy with many days)
-       # hue_norm=norm,
-    )
-
-    plt.xlabel("Solar Power (W.m^2)")
-    plt.ylabel("Power (W)")
-    plt.title("Temperature vs Power")
-    plt.tight_layout()
-    plt.savefig(root_folder / "figures" / "max_daily_power_vs_power.png")
-
-    data["time_hours"] = (
-        data["datetime"].dt.hour +
-        data["datetime"].dt.minute / 60
-    )
-
-
-    data.drop(columns=["datetime", "date"], inplace=True)
-    grouped_data = data.groupby("time_hours")
-    mean = grouped_data.mean()
-    std = grouped_data.std()
-    n = grouped_data.count()
-
-    ci = 1.96 * std / np.sqrt(n)
-
-
-    plt.figure(figsize=(10, 5))
-
-
-    # Mean line
-    plt.plot(mean.index, mean["total_demand"], color="blue")
-
-    # Confidence interval
-    plt.fill_between(
-        mean.index,
-        mean["total_demand"] - std["total_demand"],
-        mean["total_demand"] + std["total_demand"],
-        color="blue",
-        alpha=0.3
-    )
-
-
-    plt.show()
-    fig, ax1 = plt.subplots()
-    # First axis (Demand)
-    sns.lineplot(data=mean, x="time_hours", y="total_demand", ax=ax1, color="blue")
-    #sns.lineplot(data=mean+std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
-    #ax = sns.lineplot(data=mean-std, x="time_hours", y="total_demand", ax=ax1, color="blue", alpha=0.3)
-    #lines = ax.get_lines()
-    #plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='blue', alpha=0.1)
-
-    ax1.set_ylabel("Power", color="blue")
-
-    # Second axis (Temp)
-    ax2 = ax1.twinx()
-    sns.lineplot(data=mean, x="time_hours", y="temperature", ax=ax2, color="red")
-    #sns.lineplot(data=mean+std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
-    #ax = sns.lineplot(data=mean-std, x="time_hours", y="temperature", ax=ax2, color="red", alpha=0.3)
-    #lines = ax.get_lines()
-    #plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='red', alpha=0.1)
-    ax2.set_ylabel("Temperature", color="red")
-
-    # Third axis (Solar Power)
-    ax3 = ax1.twinx()
-    ax3.spines["right"].set_position(("outward", 60))
-    sns.lineplot(data=mean, x="time_hours", y="solar_power", ax=ax3, color="orange")
-    #sns.lineplot(data=mean+std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
-    #ax = sns.lineplot(data=mean-std, x="time_hours", y="solar_power", ax=ax3, color="orange", alpha=0.3)
-    #lines = ax.get_lines()
-    #plt.fill_between(lines[0].get_xdata(), lines[1].get_ydata(), lines[2].get_ydata(), color='orange', alpha=0.1)
-    ax3.set_ylabel("Solar Power", color="orange")
-
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-
-    plt.tight_layout()
-    plt.savefig(root_folder / "figures" / "mean_daily.png")
-
-if False:
-    corr = cross_corr(data["temperature"], data["total_demand"])
-    lags = np.arange(-len(data)+1, len(data))
-
-    max_lag = 48
-    mask = (lags >= -max_lag) & (lags <= max_lag)
-
-    lags_limited = lags[mask]
-    corr_limited = corr[mask]
-
-    best_lag = lags_limited[np.argmax(corr_limited)]
-
-    print(f"Best lag: {best_lag} steps (~{best_lag*0.5} hours)")
-
-    corr = cross_corr(data["solar_power"], data["total_demand"])
-    lags = np.arange(-len(data)+1, len(data))
-
-    max_lag = 48
-    mask = (lags >= -max_lag) & (lags <= max_lag)
-
-    lags_limited = lags[mask]
-    corr_limited = corr[mask]
-
-    best_lag = lags_limited[np.argmax(corr_limited)]
-
-    print(f"Best lag: {best_lag} steps (~{best_lag*0.5} hours)")
+if __name__ == "__main__":
+    main()

@@ -1,13 +1,10 @@
-import datetime
 from pathlib import Path
-
 from matplotlib import pyplot as plt
-from sklearn.metrics import r2_score, mean_absolute_percentage_error, root_mean_squared_error
+from sklearn.metrics import r2_score, mean_absolute_percentage_error, root_mean_squared_error, mean_absolute_error, mean_squared_error
 import pandas as pd
 import numpy as np
 import matplotlib.dates as mdates
 import python.colour_dict as colour_dict
-from python.public_holidays import get_holidays
 from fitting import get_data
 
 # name dictionary for nicer plots:
@@ -28,6 +25,14 @@ name_dict = {'rainfall': 'Daily Rainfall',
              "ma1": f"MA$_1$"}
 
 def get_window_mean(row, data):
+    """
+        Helper function to calculate mean of a dataframe rows evaluation date and label,
+        returns 1.0 for near zero mean and np.nan for key errors
+        :param row: pd.Series row of data for the analysis
+        :param data: the full dataset for the analysis of the mean
+        :return: float/np.nan the mean for the given row label and evaluation date.
+    """
+
     end = pd.to_datetime(row['eval_date'])
     start = end - pd.Timedelta(days=7 * 8)
     try:
@@ -41,13 +46,28 @@ def get_window_mean(row, data):
         return np.nan
 
 def plot_peaks(actual, hi, low, mean, x, name, axis_name, plt_title=None):
+    """
+    Plot the peaks of the prediction and the CI interval along with scattered values for the actual peak demand data.
+
+    :param actual: pd.Series containing the actual demand data
+    :param hi: pd.Series containing the predicted upper CI demand data
+    :param low: pd.Series containing the predicted lower CI demand data
+    :param mean: pd.Series containing the mean predicted demand data
+    :param x: pd.Series containing the time series data
+    :param name: save name of the plot
+    :param axis_name: name of the axis
+    :param plt_title: title of the plot (optional, defaults to None)
+    :return: None, saves plots to the figures folder.
+      """
+
 
     cwd = Path.cwd()
-    plt.style.use("seaborn-v0_8-whitegrid")  # nice default styling
+
+    # nice default styling
+    plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(12, 5))
 
-    ax.fill_between(x, low, hi, color="tab:blue", alpha=0.2,
-                    label="Prediction interval")
+    ax.fill_between(x, low, hi, color="tab:blue", alpha=0.2, label="Prediction interval")
     ax.plot(x, mean, color="tab:blue", linewidth=2, label="Predicted")
     ax.scatter(x, actual, color=colour_dict.demand_cols['peak'], s=40, alpha=0.8, label="Actual")
 
@@ -66,42 +86,60 @@ def plot_peaks(actual, hi, low, mean, x, name, axis_name, plt_title=None):
 
 
 def plot_impact(data_file, labels_to_plot, save_location, plt_title=None):
+    """
+    plots the coefficient values and the range based on the reported 95% CI for the requested labels based on the
+    standard errors.
+
+   :param data_file: data file containing the coefficient values and the standard errors
+   :param labels_to_plot: list of labels to plot
+   :param save_location: folder to save the plot in
+   :param plt_title: title of the plot (optional, defaults to None)
+   :return: None, saves plots to the figures folder.
+    """
 
     fig, axes = plt.subplots(len(labels_to_plot), 1, figsize=(14, 3 * len(labels_to_plot)), sharex=True)
     for ax, label in zip(axes, labels_to_plot):
         subset = data_file[data_file['label'] == label].sort_values('eval_date')
         subset['eval_date'] = pd.to_datetime(subset['eval_date'], yearfirst=True)
         ax.plot(subset['eval_date'], subset['impact_coef'], label='coef')
-        # fill between using the standard errors converter to 95% CI.
+        # fill between using the standard errors converter to 95% CI. 1.96 ~ qnorm(0.975, mean=0, sd=1)
         ax.fill_between(subset['eval_date'],
                         subset['impact_coef'] - 1.96 * subset['impact_std_error'],
                         subset['impact_coef'] + 1.96 * subset['impact_std_error'],
                         alpha=0.2)
         ax.axhline(0, color='red', linestyle='--', linewidth=0.8)
-        ax.set_ylabel(label, rotation=90, labelpad=0)
+        ax.set_ylabel(label, rotation=90, labelpad=0, fontsize=14)
 
     # clean up the axes
     axes[-1].xaxis.set_major_locator(mdates.MonthLocator())
     axes[-1].xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
-    plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha='right')
+    plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=14)
 
     plt.suptitle(plt_title)
     plt.tight_layout()
     plt.savefig(save_location, dpi=600)
 
 
-def data_assessment(df, plotting=False, plt_name="new-plot"):
-    df.dropna(how='any', axis=0, inplace=True)
-    time = pd.to_datetime(df['eval_date'], yearfirst=True)
-    actual_peak_afternoon = (df['peak_actual_afternoon'])
-    pred_mean_peak_afternoon = (df['peak_predicted_afternoon_mean'])
-    pred_hi_peak_afternoon = (df['peak_predicted_afternoon_hi'])
-    pred_low_peak_afternoon = (df['peak_predicted_afternoon_lo'])
+def data_assessment(data, plotting=False, plt_name="new-plot"):
+    """
+    Conducts an assessment of the results, mostly just printed to the console with the option to generate the plots
+      :param data: dataframe of data
+      :param plotting: boolean for if the plotting of the peaks is to be done
+      :param plt_name: name of save file for the plots
+      :return: None, saves plots to the figures folder, prints stats to the console.
+    """
 
-    actual_peak_morning = (df['peak_actual_morning'])
-    pred_mean_peak_morning = (df['peak_predicted_morning_mean'])
-    pred_hi_peak_morning = (df['peak_predicted_morning_hi'])
-    pred_low_peak_morning = (df['peak_predicted_morning_lo'])
+    data.dropna(how='any', axis=0, inplace=True)
+    time = pd.to_datetime(data['eval_date'], yearfirst=True)
+    actual_peak_afternoon = (data['peak_actual_afternoon'])
+    pred_mean_peak_afternoon = (data['peak_predicted_afternoon_mean'])
+    pred_hi_peak_afternoon = (data['peak_predicted_afternoon_hi'])
+    pred_low_peak_afternoon = (data['peak_predicted_afternoon_lo'])
+
+    actual_peak_morning = (data['peak_actual_morning'])
+    pred_mean_peak_morning = (data['peak_predicted_morning_mean'])
+    pred_hi_peak_morning = (data['peak_predicted_morning_hi'])
+    pred_low_peak_morning = (data['peak_predicted_morning_lo'])
     actual_peak = np.max([actual_peak_afternoon, actual_peak_morning], axis=0)
 
     daily_peaks_arg = np.argmax([pred_mean_peak_afternoon, pred_mean_peak_morning], axis=0)
@@ -120,6 +158,8 @@ def data_assessment(df, plotting=False, plt_name="new-plot"):
                    time, plt_name, "Peak Electricity Demand (MW)", plt_title="SARIMAX")
 
     print(f"RMSE: {root_mean_squared_error(actual_peak, daily_peaks)}")
+    print(f"MSE: {mean_squared_error(actual_peak, daily_peaks)}")
+    print(f"MAE: {mean_absolute_error(actual_peak, daily_peaks)}")
     print(f"MAPE: {mean_absolute_percentage_error(actual_peak, daily_peaks)}")
     print(f"R2: {r2_score(actual_peak, daily_peaks)}")
     print(f"Counts Actual > HI: {np.sum(actual_peak > daily_hi)}")
@@ -128,6 +168,14 @@ def data_assessment(df, plotting=False, plt_name="new-plot"):
 
 
 def p_value_plots(stats_df, output_lcl=None):
+    """
+    Heatmap of the exogenous and AR/MA p-values along with bar plot of the number of days when the value is significant.
+
+    :param stats_df: dataframe of statistical data from the analysis
+    :param output_lcl: location to save the plot to or just print if None
+    :return:
+    """
+
     heatmap_df = stats_df.pivot(index='eval_date', columns='label', values='p_value')
 
     # get just the important values p < 0.05
@@ -162,30 +210,42 @@ def p_value_plots(stats_df, output_lcl=None):
 
 
 def main():
+    """
+    Main function to run the assessment of the results.
+    :param: None (all controls are inside this function)
+    :return: None, files are saved and data is printed to the console.
+    """
+
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
     plt_folder = root_folder / "figures"
 
+    # need the data again for the plotting of the coefficients (for the mean values)
     data = get_data(data_folder)
     data["date"] = pd.to_datetime(data.index)
     data["date"] = data["date"].dt.date
     data["pv_capacity"] = data["pv_capacity"] / 1000
 
-    data_file = "daily_data_without_exog2026-04-24"
-    exogenous_ananlysis = False
+    # name of the datafile to analyse
+    data_file = "daily_data_with_exog2026-04-24"
+    # switch for whether the data contains the exogenous variables, and you want to plot the coefficients over the window.
+    exogenous_ananlysis = True
+    # plot switch
+    save_plots = True
+    plt_name = "Final_Window_SARIMAX.png"
 
-    # exog = pd.read_csv(cwd / 'final_results_window_2026-04-22_with_exog.csv')
-    no_exog = pd.read_csv(cwd /"data"/ (data_file + ".csv"))
+    results_data = pd.read_csv(cwd /"data"/ (data_file + ".csv"))
     stats_df = pd.read_csv(cwd /"data"/ (data_file + "_stats.csv"))
 
     # drop any failed simulations
-    failed_simulations = no_exog["eval_date"][pd.isna(no_exog["model aicc"])]
-    no_exog.dropna(inplace=True, how="any", axis=0)
+    failed_simulations = results_data["eval_date"][pd.isna(results_data["model aicc"])]
+    results_data.dropna(inplace=True, how="any", axis=0)
     stats_df = stats_df[~stats_df["eval_date"].isin(failed_simulations)]
 
-    data_assessment(no_exog,plotting=False, plt_name="Final_Window_SARIMAX.png")
+    data_assessment(results_data,plotting=save_plots, plt_name=plt_name)
 
+    # analysis of the coefficients is only done for the exogenous variables.
     if exogenous_ananlysis:
         stats_df['window_mean'] = stats_df.apply(get_window_mean, axis=1, data=data)
         stats_df['impact_coef'] = stats_df['value'] * stats_df['window_mean']
@@ -197,7 +257,7 @@ def main():
 
         p_value_plots(stats_df, plt_folder/"final_values.png")
 
-        # all if you want them.
+        # all if you want them, or just a subset of variables as it looks better on the plots.
         # labels = stats_df["label"].unique()
         labels = [("Weekly_Impact", ["Fourier Term (Cos, K=1)",  "Fourier Term (Sin, K=1)", "Demand (Lagged, 1 Week)"]),
                   ("Temp_Impact", ["Temperature", "Temperature (1 lag)", "Temperature (9 lags)"]),
@@ -213,83 +273,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-    if False:
-
-        max_daily_temp = data.groupby("date").max()["temperature"]
-
-        # one bad value is noted, just remove it
-        no_exog.dropna(how='any',axis=0, inplace=True)
-        time = pd.to_datetime(no_exog['eval_date'], yearfirst=True)
-
-        filtered_temp = max_daily_temp[max_daily_temp.index.isin(time.dt.date)]
-
-
-        actual_peak_afternoon = (no_exog['peak_actual_afternoon'])
-        pred_mean_peak_afternoon = (no_exog['peak_predicted_afternoon_mean'])
-        pred_hi_peak_afternoon = (no_exog['peak_predicted_afternoon_hi'])
-        pred_low_peak_afternoon = (no_exog['peak_predicted_afternoon_lo'])
-
-        actual_peak_morning = (no_exog['peak_actual_morning'])
-        pred_mean_peak_morning = (no_exog['peak_predicted_morning_mean'])
-        pred_hi_peak_morning = (no_exog['peak_predicted_morning_hi'])
-        pred_low_peak_morning = (no_exog['peak_predicted_morning_lo'])
-
-        #plot_peaks(actual_peak_morning, pred_hi_peak_morning, pred_low_peak_morning, pred_mean_peak_morning,
-        #           time, "peak_morning_with_exog", "Morning Peak Power (MW)")
-
-        actual_peak = np.max([actual_peak_afternoon, actual_peak_morning],axis=0)
-
-        daily_peaks_arg = np.argmax([pred_mean_peak_afternoon, pred_mean_peak_morning], axis=0)
-
-        daily_peaks = np.array([pred_mean_peak_afternoon, pred_mean_peak_morning])
-        daily_peaks= daily_peaks[daily_peaks_arg, np.arange(daily_peaks.shape[1])]
-
-
-        daily_hi = np.array([pred_hi_peak_afternoon, pred_hi_peak_morning])
-        daily_hi= daily_hi[daily_peaks_arg, np.arange(daily_hi.shape[1])]
-
-        daily_lo = np.array([pred_low_peak_morning, pred_low_peak_afternoon])
-        daily_lo= daily_lo[daily_peaks_arg, np.arange(daily_lo.shape[1])]
-
-
-        plot_peaks(actual_peak,daily_hi, daily_lo, daily_peaks,
-                   time, "SARIMAX_peak_daily_squared", "Peak Electricity Demand (MW)", plt_title="SARIMAX")
-
-        holidays = get_holidays(2020)
-        holidays = pd.to_datetime(holidays)
-
-        residuals = actual_peak - daily_peaks
-
-        print(f"RMSE: {root_mean_squared_error(actual_peak, daily_peaks)}")
-        print(f"MAPE: {mean_absolute_percentage_error(actual_peak, daily_peaks)}")
-        print(f"R2: {r2_score(actual_peak, daily_peaks)}")
-        print(f"Counts Actual > HI: {np.sum(actual_peak > daily_hi)}")
-        print(f"Counts Actual < LO: {np.sum(actual_peak < daily_lo)}")
-
-
-        weekend_mask = (time.dt.weekday == 5) | (time.dt.weekday == 6)
-        holiday_mask = time.isin(holidays)
-
-        plt.style.use("seaborn-v0_8-whitegrid")  # nice default styling
-        fig, ax = plt.subplots()
-        plt.scatter(np.abs(np.diff(filtered_temp)), np.abs(residuals)[0:-1])
-        ax.set_title("Residuals")
-        ax.set_xlabel("Temperature (\u00b0C)")
-        ax.set_ylabel("Absolute Residuals")
-        plt.show()
-
-        fig, ax1 = plt.subplots()
-
-        ax1.plot(time, np.abs(residuals), color="blue", label="y1")
-        ax1.set_ylabel("Absolute Residuals (MW)", color="blue")
-
-        ax2 = ax1.twinx()
-        ax2.plot(time, filtered_temp, color="red", label="y2")
-        ax2.set_ylabel('Temperature (\u00b0C)', color="red")
-
-        plt.show()
 
 

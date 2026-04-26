@@ -1,5 +1,5 @@
 """
-The purpose of this script is to determine the values of the SARIMAX parameters
+The purpose of this script is to assess the effect of varying the window size.
 """
 import itertools
 from multiprocessing import freeze_support, Pool
@@ -12,7 +12,15 @@ from statsforecast.models import ARIMA
 from fitting import get_data
 
 def run_date_section(data, start, training_window, evaluation_window, using_exog=False):
-
+    """
+    Run the date section for the given model and date range, model parameters have been set by previous analysis.
+    :param data: Dataframe of incoming data
+    :param start: start date as Datetime
+    :param training_window: size of the training window in days
+    :param evaluation_window: size of the evaluation window in days
+    :param using_exog: bool for using exogenous variables
+    :return: list of dictionaries of fata
+    """
     print(f"running:{start}")
 
     end = start + datetime.timedelta(days=training_window)
@@ -25,7 +33,6 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     testing_set = data[mask_test]
 
     results = []
-
 
     try:
         if using_exog:
@@ -73,8 +80,14 @@ def run_date_section(data, start, training_window, evaluation_window, using_exog
     return results
 
 
-def run(data, cores):
-
+def run(data, cores, save_location):
+    """
+    Runner for analysis of the window assessment
+    :param data: incoming dataframe with demand and exogenous variables
+    :param cores: number of cores to run none of <=1 is single core (good for debugging, otherwise slow).
+    :param save_location: location to save the results
+    :return: Nothing data is saved to the location.
+    """
 
     years = [2017, 2018]
     months = [1, 3, 6, 9]
@@ -100,36 +113,33 @@ def run(data, cores):
         with Pool(cores) as pool:
             results = pool.starmap(run_date_section, func_args)
 
+    # flatten lists of lists (maybe just needed for single-threaded)
     results = [item for sublist in results for item in sublist]
 
     df = pd.DataFrame(results)
     df.sort_values(by=["year", "month"], inplace=True)
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / "data" / f"window_assessment.csv", index=False)
+        df.to_csv(save_location /  f"window_assessment.csv", index=False)
     except Exception as e:
+        # fail safe in case something is wrong with the original location
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)
 
 
-
-# Using the special variable
 if __name__=="__main__":
-
     freeze_support()
 
-    # not using the decomp
-    decomposition = False
-    sweep_no_exo = True
     cores = 20
 
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
+    #save_location = root_folder/ "python"/ "SARIMAX" / "data"
+    save_location = Path(r"C:\Temp")
+
     data = get_data(data_folder)
     # reduce by 1000 as it appears to help stability
     data["pv_capacity"] = data["pv_capacity"] / 1000
-
-    if sweep_no_exo:
-        run(data, cores)
+    run(data, cores, save_location)
 
 

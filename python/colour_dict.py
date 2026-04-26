@@ -10,3 +10,6 @@ var_dict_total = {'rainfall': 'Daily Rainfall (mm)', 'pv_capacity': 'PV Installa
 
 # dictionary for variable axis names when using conditional peak demand data
 var_dict_peak = {'rainfall': 'Daily Rainfall (mm)', 'pv_capacity': 'PV Installation', 'temperature': 'Temperature (\u00b0C)', 'solar_power': r'Solar Irradiance (Wh m$^{-2}$)', 'total_demand': 'Peak Electricity Demand (MW)'}
+
+# dictionary for the plots which use the daily information together.
+day_colors = {'Monday': 'tab:blue', 'Tuesday': 'tab:orange', 'Wednesday': 'tab:green', 'Thursday': 'tab:red', 'Friday': 'tab:purple', 'Saturday': 'tab:brown', 'Sunday': 'tab:pink'}

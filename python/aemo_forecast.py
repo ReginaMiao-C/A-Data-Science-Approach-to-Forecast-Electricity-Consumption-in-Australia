@@ -6,7 +6,7 @@ cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
 # set source folder for data
-source_folder = Path(r'C:\Users\molly\OneDrive\Documents\UNSW\Project\Data')
+source_folder = Path(r'C:\Users\...')
 
 
 # if True, extracts AEMO predictions at true daily peak times

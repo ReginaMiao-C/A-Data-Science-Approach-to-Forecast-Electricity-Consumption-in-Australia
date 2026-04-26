@@ -1,3 +1,4 @@
+# Import required libraries and custom functions
 import pandas as pd
 from pathlib import Path
 import torch
@@ -8,18 +9,21 @@ import lstm_functions as lf
 
 #import lstm_functions2 as lf
 
+# Set random seed for reproducibility
 torch.manual_seed(0)
 
+# Define file paths for data and results storage
 cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
 
 
-# testing var dropouts (on m2) - table c15
+# Create output directory for model results
 res_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'
 res_path.mkdir(parents=True,exist_ok=True)
 
 
+# Define modelling scenarios for different feature sets and datasets
 scenarios = [
     {
         'name': 'all_variables_validation',
@@ -48,24 +52,26 @@ scenarios = [
 ]
 
 
+# Loop through each modelling scenario
 for scenario in scenarios:
 
     print('Running scenario:', scenario['name'])
 
+    # Load dataset and define validation starting index
     df = pd.read_csv(data_folder / 'all_data_30min.csv')
     val_y_start_idx = 3408 + (48*2)
 
+    # Preprocess data depending on validation or testing scenario
     if scenario['test_data']:
         df = lf.preprocess_30_min_data(df, True, val_data_only=False, test_data_only=True)
     else:
         df = lf.preprocess_30_min_data(df, True)
 
+    # Prepare dataset and initialise results storage
     df, df_datetime, results = lf.eval_df(df)
 
 
-    #set vars to drop
-    # 0: none, 1: day, 2: month, 3: day and month, 4: all date, 5: hour, 6: minute, 7: all time, 8: all datetime
-    # 9: 
+    # Select feature set based on variable dropout configuration
     dropped_vars = scenario['dropped_vars']
 
 
@@ -121,9 +127,10 @@ for scenario in scenarios:
 
 
 
-
+    # Calculate number of rolling windows based on scenario configuration
     num_repeats = round((len(df) - val_y_start_idx) / scenario['num_repeats_divisor'])
 
+    # Train model using sliding window approach
     results = lf.repeat_windows(
         df,
         results,
@@ -134,9 +141,11 @@ for scenario in scenarios:
         retrain=scenario['retrain']
     )
 
+    # Save and display model performance metrics
     name = scenario['name'] + '.csv'
     lf.display_metrics(results, True, file_path=res_path, file_name=name)
 
+    # Compute SHAP feature importance across training windows
     shap_results = lf.average_shap_training_windows(
         df,
         df_datetime,
@@ -150,4 +159,5 @@ for scenario in scenarios:
         file_name_prefix=scenario['name']
     )
 
+    # Output SHAP results
     print(shap_results)

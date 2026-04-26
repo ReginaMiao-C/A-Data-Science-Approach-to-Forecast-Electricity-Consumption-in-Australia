@@ -1,13 +1,9 @@
 import pandas as pd
 from pathlib import Path
 import torch
-import sys
-import numpy as np
-import public_holidays as ph
 import lstm_functions as lf
 
-#import lstm_functions2 as lf
-
+# ensure reproducibility
 torch.manual_seed(0)
 
 cwd = Path.cwd()
@@ -15,7 +11,7 @@ root_folder = cwd.parent
 data_folder = root_folder / 'data'
 
 
-# testing var dropouts (on m2) - table c15
+# testing variable dropouts
 res_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'
 res_path.mkdir(parents=True,exist_ok=True)
 
@@ -26,7 +22,8 @@ df = lf.preprocess_30_min_data(df, True)
 df, df_datetime, results = lf.eval_df(df)
 
 
-#set vars to drop
+# testing variable dropouts
+#set vars to drop:
 # 0: none, 1: day, 2: month, 3: day and month, 4: all date, 5: hour, 6: minute, 7: all time, 8: all datetime
 # 9: 
 dropped_vars = 8
@@ -81,7 +78,6 @@ elif dropped_vars ==7:
 elif dropped_vars == 8:
     # drop all datetime
     df = df[['rainfall', 'pv_capacity', 'temperature', 'solar_power', 'total_demand', 'public_hol']]
-
 
 
 

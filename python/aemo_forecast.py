@@ -8,6 +8,8 @@ data_folder = root_folder / 'data'
 # set source folder for data
 source_folder = Path(r'C:\Users\molly\OneDrive\Documents\UNSW\Project\Data')
 
+
+# if True, extracts AEMO predictions at true daily peak times
 peak_only = False
 
 # read forecast demand data
@@ -40,12 +42,11 @@ if peak_only:
     max_idx = df.groupby('date')['total_demand'].idxmax()
     df = df.loc[max_idx].reset_index(drop=True)
 
-# one to many merge on actual  demand
+# one to many merge on actual demand
 forecast = pd.merge(df, forecast, on='datetime', how='left')
 forecast['forecast_datetime'] = pd.to_datetime(forecast['forecast_datetime'])
 forecast['forecast_date'] = forecast['forecast_datetime'].dt.date
 forecast['forecast_date'] = pd.to_datetime(forecast['forecast_date'], format='%Y-%m-%d')
-
 
 # get last forecast from previous day
 forecast['prev_date'] = forecast['date'] - pd.Timedelta(days=1)
@@ -58,7 +59,7 @@ if peak_only:
 else:
     forecast.to_csv(data_folder / 'all_forecasts.csv', index=False)
 
-    
+    # daily true and predicted peak magnitudes and times
     forecast['datetime'] = pd.to_datetime(forecast['datetime'])
     forecast['date'] = forecast['datetime'].dt.date
     forecast['time'] = forecast['datetime'].dt.time

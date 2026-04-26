@@ -96,6 +96,7 @@ def split_data(initial_val_y_start, num_repeats, window_slide, x, y, df_datetime
     y_train_seq = []
     x_val_seq = []
     y_val_seq = []
+    # create sequences of training and validation data (validation size of 50)
     for r in range(num_repeats-50):
         val_y_start = initial_val_y_start + (window_slide*r)
         train_y_end = val_y_start
@@ -126,7 +127,7 @@ def split_data(initial_val_y_start, num_repeats, window_slide, x, y, df_datetime
 
 
 
-def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, days_between_val = 1, retrain=True):
+def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, days_between_val = 1):
     """
      repeats sliding window calculations for multiple validation days and returns metrics
      initial_val_y_start: first validation day idx

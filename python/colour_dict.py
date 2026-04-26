@@ -1,6 +1,4 @@
-
-# dictionary for assigning variable colours
-# peak/all used to colour peak demand and total demand
+# peak/all used to colour peak demand and total demand plots
 # var1/var2 are a similar set (binary colouring etc)
 # var3/4/5 are a similar set
 demand_cols = {'peak': 'orange', 'all': 'tomato', 

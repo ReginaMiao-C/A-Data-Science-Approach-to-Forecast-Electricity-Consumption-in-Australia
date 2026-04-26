@@ -8,6 +8,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 import public_holidays as ph
 
+# ensure reproducibility
 torch.manual_seed(0)
 
 class LSTMmodel(nn.Module):
@@ -94,10 +95,12 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
     """
     train LSTM on 70 days of data before desired validation point
     val_y_start: idx position of first validation datapoint (12am)
+    train_pass: True if model is training at current stage
     """
     if val_y_start < 3408:
         print('Error: Training window precedes start of data. Increase val_y_start to at least 3408')
         sys.exit()
+    # one day overlap in x and y
     train_y_end = val_y_start
     train_y_start = train_y_end - 48
     train_x_end = train_y_end
@@ -126,7 +129,6 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
             loss.backward() # computes loss gradients
             optimizer.step()
 
-
     return scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train
 
 
@@ -134,6 +136,7 @@ def validate_lstm(scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, 
     """
     validate trained model on new y data
     """
+    # one day overlap in x and y
     val_y_end = val_y_start + 48
     val_x_end = val_y_end
     val_x_start = val_x_end - (70*48)
@@ -188,6 +191,7 @@ def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, d
      initial_val_y_start: first validation day idx
      num_repeats: number of windows for training and validation
      days_between_val: number of days in 'jumps' between window (if 1, window slides forward by 1 day)
+     retrain: specify whether models are retrained at each window
     """
     window_slide = 48*days_between_val
     if initial_val_y_start + (window_slide*(num_repeats-1)) > len(df) - 48:

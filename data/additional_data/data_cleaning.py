@@ -2,8 +2,6 @@
 import pandas as pd
 
 
-# NOTE: existing data ranges from 01/01/2010 to 18/03/2021 in NSW
-
 def format_date(df):
     """
     replace Year, Month, (Day) columns with DATE in current range
@@ -67,7 +65,6 @@ pv_count_df = format_date(pv_count_df)
 print(pv_count_df.isna().any())
 
 
-# NOTE: this cumulative measurement may be unreliable depending on PV uninstallation rates
 pv_count_df['CUMULATIVE_PV_INSTALLATIONS'] = pv_count_df['PV_INSTALLATIONS'].cumsum()
 pv_count_df.to_csv('processed_data\monthly_pv_installations_nsw.csv')
 

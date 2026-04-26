@@ -11,6 +11,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 import public_holidays as ph
 
+# ensure reproducibility
 torch.manual_seed(0)
 
 class LSTMmodel(nn.Module):
@@ -74,6 +75,7 @@ def preprocess_30_min_data(df, holidays = True, val_data_only=True, test_data_on
 def eval_df(df, all_preds=False):
     """
     return copy of preprocessed data and empty dataframe for response variable evaluation
+    all_preds=True returns true vs actual predictions, otherwise returns metrics
     """
     df_datetime = df.copy()
     df_datetime = df[['date', 'time', 'total_demand']]
@@ -101,6 +103,7 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
     """
     train LSTM on 70 days of data before desired validation point
     val_y_start: idx position of first validation datapoint (12am)
+    train_pass: True if model is training at current stage
     """
     if val_y_start < 3408:
         print('Error: Training window precedes start of data. Increase val_y_start to at least 3408')
@@ -111,7 +114,6 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
     train_x_start = train_x_end - (70*48)
     x_train = x.iloc[train_x_start:train_x_end]
     y_train = y.iloc[train_y_start:train_y_end]
-
 
     #scale data
     scaler_x = MinMaxScaler()
@@ -132,7 +134,6 @@ def train_lstm(val_y_start, x, y, criterion_mse, criterion_mae, optimizer, model
             optimizer.zero_grad() # reset gradients
             loss.backward() # computes loss gradients
             optimizer.step()
-
 
     return scaler_x, scaler_y, val_y_start, x, y, x_train_scaled, model, y_train
 
@@ -167,7 +168,6 @@ def calculate_metrics(y_pred, y_train_pred, day, y_val, y_train, results, all_pr
     """
     evaluate model performance for one window
     """
-
     if not all_preds:
         true_max = day['total_demand'].max()
         true_max_time= day['time'].iloc[day['total_demand'].idxmax()].time()
@@ -198,6 +198,7 @@ def repeat_windows(df, results, df_datetime, initial_val_y_start, num_repeats, d
      initial_val_y_start: first validation day idx
      num_repeats: number of windows for training and validation
      days_between_val: number of days in 'jumps' between window (if 1, window slides forward by 1 day)
+     retrain: specify whether models are retrained at each window
     """
     window_slide = 48*days_between_val
     if initial_val_y_start + (window_slide*(num_repeats-1)) > len(df) - 48:
@@ -225,6 +226,7 @@ def display_metrics(results, save=False, file_path='', file_name='', display=Tru
     save: write all results to csv file
     file_path: folder to save csv file
     file_name: name of csv file
+    display: display average metrics over all windows
     """
     if display:
         print('Avg Train MSE: ', results['Total Train MSE'].mean())
@@ -244,7 +246,7 @@ def display_metrics(results, save=False, file_path='', file_name='', display=Tru
         results.to_csv(file_path / file_name)
 
 
-# wrap model to explain predicted daily peak only
+# wrap model to explain predicted daily peak for SHAP analysis
 class PeakModel(nn.Module):
     def __init__(self, base_model):
         """

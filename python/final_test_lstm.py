@@ -4,19 +4,17 @@ import torch
 import sys
 import numpy as np
 import public_holidays as ph
-#import test_functions_lstm as lf
 import lstm_functions as lf
 
-
-
+# ensure reproducible results
 torch.manual_seed(0)
 
 cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
 df = pd.read_csv(data_folder / 'all_data_30min.csv')
-# testing: 1 = best model, 2 = predictions for ensemble, 3 = best model (all vars), 4 = sequential model
-use = 2
+# testing: 1 = actual best model (no datetime vars), 2 = predictions for ensemble, 3 = best model (all vars), 4 = sequential model - proof of concept
+use = 1
 
 if use == 1:
     res_path = root_folder / 'Results' / 'LSTM' / 'Final' / 'Var Dropout'

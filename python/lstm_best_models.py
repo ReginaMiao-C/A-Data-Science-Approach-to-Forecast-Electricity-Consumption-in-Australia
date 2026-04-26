@@ -13,29 +13,18 @@ import public_holidays as ph
 # ensure reproducible results
 torch.manual_seed(0)
 
-day_of_year = False
-drop_orig_dates = False #cyclical only
+day_of_year = False #if True, use day of year instead of day and month
+drop_orig_dates = False #if True, cyclical encoded dates only
 ymd = ''
 cyclical_only = ''
-holidays = False
-no_ph = ''
+keep_weights = True # if True, keep model weights between windows (hot starts)
 
-keep_weights = True
-
-# specify vars for droupout tests
-rainfall = True
-pv = True
-temp = True
-solar = True
-holidays = True
-
-# define which model used for validation
+# define which model used 
 model_1 = True
 model_2 = False
 
-
+# define model architecture
 epochs = 50
-
 if model_1:
     window_size = 70
     hidden_size = 32
@@ -56,8 +45,6 @@ if model_2:
     model_name = 'model2'
 
 
-
-
 cwd = Path.cwd()
 root_folder = cwd.parent
 data_folder = root_folder / 'data'
@@ -73,20 +60,9 @@ df['time'] = pd.to_datetime(df['time'], format='%H:%M:%S')
 df['date'] = df['datetime'].dt.date
 df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
 df = df[df['date']!='2010-01-01']
-
-
 df['year'] = df['date'].dt.year
 df['hour'] = df['time'].dt.hour
 df['min'] = df['time'].dt.minute
-
-
-if holidays:
-    no_ph = 'ph'
-    public_hols = []
-    for yr in df['year'].unique():
-        public_hols.extend(ph.get_holidays(yr))
-    public_hol_dates = pd.to_datetime(public_hols)
-    df['public_hol'] = df['date'].isin(public_hol_dates).astype(int)
 
 
 # cyclical encoding
@@ -113,26 +89,12 @@ df['min_cos'] = np.cos(2 * np.pi * df['min'] / 60)
 if drop_orig_dates:
     df = df.drop(columns=['hour', 'min'])
 
-dropped_vars = '_'
-# remove vars
-if not rainfall:
-    df = df.drop(columns='rainfall')
-    dropped_vars = dropped_vars + 'rainfall_'
-if not pv:
-    df = df.drop(columns='pv_capacity')
-    dropped_vars = dropped_vars + 'pv_'
-if not temp:
-    df = df.drop(columns='temperature')
-    dropped_vars = dropped_vars + 'temperature_'
-if not solar:
-    df = df.drop(columns='solar_power')
-    dropped_vars = dropped_vars + 'solar_'
 
 # separate unseen final testing data
 test_data = df[(df['year'] == 2021) | (df['year'] == 2020)]
 val_data = df[(df['year'] != 2021) & (df['year'] != 2020)]
 val_data = val_data.reset_index()
-# create copy of peak data for evaluation
+# create copy of peak demand data for evaluation
 df_datetime = val_data.copy()
 df_datetime = val_data[['date', 'time', 'total_demand']]
 val_data = val_data.drop(columns=['datetime', 'time', 'date'])
@@ -172,13 +134,16 @@ if keep_weights:
     criterion_mae = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+# store loss at each epoch
 train_loss = []
 epoch_list = []
 
 # split data for each training window
 obs = 48 #number of observations in a day
-# val sample every 40 days to ensure good spread of days and months sampled across all years
+# val sample: every 40 days to ensure good spread of days and months across all years
+print('Number of repeats: ', len(range(98*obs, len(val_data), 40*obs)))
 for repeat in range(98*obs, len(val_data), 40*obs):
+    # given long training time, return repeat number at each new repeat
     print((repeat-98*obs)/(40*obs))
     # train on 70 day window to predict next day
     # validate on following day
@@ -202,15 +167,10 @@ for repeat in range(98*obs, len(val_data), 40*obs):
     x_val_scaled = scaler_x.transform(x_val)
     scaler_y = MinMaxScaler()
     y_train_scaled = scaler_y.fit_transform(y_train.values.reshape(-1, 1)).T
-    #y_val_scaled = scaler_y.transform(y_val.values.reshape(-1, 1)).T
     
-
     x_train_scaled = torch.tensor(x_train_scaled, dtype=torch.float32).unsqueeze(0)
     y_train_scaled = torch.tensor(y_train_scaled, dtype=torch.float32)
     x_val_scaled = torch.tensor(x_val_scaled, dtype=torch.float32).unsqueeze(0)
-    #y_val_scaled = torch.tensor(y_val_scaled, dtype=torch.float32)
-
-
 
     if not keep_weights:
         # initialise model
@@ -233,6 +193,7 @@ for repeat in range(98*obs, len(val_data), 40*obs):
         train_loss.append(loss.item())
         epoch_list.append(e)
 
+    # evaluate model
     model.eval()
     with torch.no_grad():
         y_train_pred_scaled = model(x_train_scaled)
@@ -241,17 +202,15 @@ for repeat in range(98*obs, len(val_data), 40*obs):
     y_train_pred = scaler_y.inverse_transform(y_train_pred_scaled.detach().cpu().numpy().T)
     y_pred = scaler_y.inverse_transform(y_pred_scaled.detach().cpu().numpy().T)
     
-    # get true values and times for validation day
+    # get true and predicted peak magnitudes and times for validation day
     day = df_datetime.iloc[val_y_start:val_y_end].copy().reset_index()
     day['pred_power'] = y_pred
- 
-
     true_max = day['total_demand'].max()
     true_max_time= day['time'].iloc[day['total_demand'].idxmax()].time()
     pred_max = day['pred_power'].max()
     pred_max_time = day['time'].loc[day['pred_power'].idxmax()].time()
 
-
+    # calculate metrics
     total_train_mse = mean_squared_error(y_train, y_train_pred)
     total_train_mae = mean_absolute_error(y_train, y_train_pred)
     total_train_mape = mean_absolute_percentage_error(y_train, y_train_pred)
@@ -264,31 +223,32 @@ for repeat in range(98*obs, len(val_data), 40*obs):
     peak_val_mae = mean_absolute_error([true_max], [pred_max])
     peak_val_mape = mean_absolute_percentage_error([true_max], [pred_max])
 
+    #store metrics
     results.loc[len(results)] = [day['date'].iloc[0], true_max, true_max_time, pred_max, pred_max_time, total_train_mse, total_train_mae, total_train_mape, total_val_mse, total_val_mae, total_val_mape, peak_val_mse, peak_val_mae, peak_val_mape]
     
-
+# save results
 res_path = root_folder / 'Results' / 'LSTM'
 res_path.mkdir(parents=True,exist_ok=True)
 if keep_weights:
-    csv_name = 'train_val_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph +'.csv'
-    plot_name = 'peak_results_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
-    plot_name_loss = 'train_loss_keep_weights_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
+    csv_name = 'train_val_results_keep_weights_' + model_name  + ymd + cyclical_only +'.csv'
+    plot_name = 'peak_results_keep_weights_' + model_name  + ymd + cyclical_only 
+    plot_name_loss = 'train_loss_keep_weights_' + model_name  + ymd + cyclical_only 
     results.to_csv(res_path / csv_name)
 if not keep_weights:
-    csv_name = 'train_val_results_' + model_name + dropped_vars + ymd + cyclical_only + no_ph + '.csv'
-    plot_name = 'peak_results_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
-    plot_name_loss = 'train_loss_' + model_name + dropped_vars + ymd + cyclical_only + no_ph
+    csv_name = 'train_val_results_' + model_name  + ymd + cyclical_only  + '.csv'
+    plot_name = 'peak_results_' + model_name + ymd + cyclical_only 
+    plot_name_loss = 'train_loss_' + model_name  + ymd + cyclical_only
     results.to_csv(res_path / csv_name)
 
+# plot actual vs predicted magnitudes
 sns.lineplot(data=results, x='date', y='true_peak', label='Actual')
 sns.lineplot(data=results, x='date', y='pred_peak', label='Predicted')
 plt.legend()
 plt.savefig(res_path / plot_name)
 plt.close()
 
-
+# plot train loss over time
 loss_df = pd.DataFrame({'train_loss': train_loss, 'epoch': epoch_list}).reset_index()
-
 sns.lineplot(loss_df, y='train_loss', x='index')
 plt.savefig(res_path / plot_name_loss)
 plt.close()
@@ -297,6 +257,7 @@ sns.lineplot(loss_df, y='train_loss', x='epoch')
 plt.savefig(res_path / plot_name_loss)
 plt.close()
 
+# display average metrics across all windows 
 print('Avg Train MSE: ', results['Total Train MSE'].mean())
 print('Avg Train MAE: ', results['Total Train MAE'].mean())
 print('Avg Train MAPE: ', results['Total Train MAPE'].mean())

@@ -12,6 +12,7 @@
 1. **data**: contains pre- and post- processed datasets, and initial processing script for additional found data
 2. **figures**: all figures produced for exploratory data analysis
 3. **python**: contains pre- and post- processed datasets
+4. **Results**: contains testing visualisations for all mocels
 
 
 ## Prerequisites
@@ -32,23 +33,29 @@ Descriptions of all Python scripts are as follows:
 3. **SARIMAX.py**: 
 4. **SARIMAX_30mins.py**: 
 5. **SARIMAX_GBR_hybrid.py**: 
-6. **aemo_forecast.py**: extract last AEMO peak electricity forecast for the following day
-7. **colour_dict.py**: dictionary for consistent figure colours and axis labels
+6. **aemo_forecast.py**: extract last AEMO electricity forecasts from the previous day
+7. **colour_dict.py**: dictionaries for consistent figure colours and axis labels
 8. **data_import_export.py**: 
 9. **data_manipulation.py**: 
 10. **eda.py**: produce visualisations for exploratory data analysis
 11. **eda_30min.py**: produce visualisations for exploratory data analysis
-12. **final_test_lstm.py**: produce test predictions for final LSTM model
-13. **final_test_lstm_analysis.py**: visualise test prediction performance for final LSTM model
-14. **load_arima.py**: 
-15. **lstm_best_models.py**: 
-16. **lstm_final.py**: 
-17. **lstm_final_shap.py**: 
-18. **lstm functions.py**: refactored LSTM code used after first round of hyperparameter tuning
-19. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning
-20. **lstm_hyperparam_tuning_2.py**: subsequent LSTM model tuning
-21. **lstm_initial_tests.py**: TODO: remove?
-22. **public holidays.py**: 
+12. **ensemble_final.py**:
+13. **final_test_lstm.py**: produce LSTM test predictions
+14. **final_test_lstm_analysis.py**: visualise test prediction performance for models
+15. **load_arima.py**: 
+15. **lstm_best_models.py**: used in the final stage of initial hyperparameter tuning to compare input variable formats for current best models (Appendix Table C15)
+17. **lstm_final_shap.py**: @julien - can this be removed?
+18. **lstm functions.py**: refactored LSTM code providing functions used after initial hyperparameter tuning
+18. **lstm functions_multi_seq.py**: used after testing, given the discovered overfitting, to investigate if passing multisequences to model reduced overfitting
+18. **lstm functions_same_day_incl.py**: used in the final stage of initial hyperparameter tuning to compare the use of same-day input data for predictions (Appendix Table C15)
+19. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning (Appendix Tables C6 through C13)
+20. **lstm_hyperparam_tuning_2.py**: LSTM tuning after SHAP insights(Appendix Table C16)
+
+20. **lstm_hyperparam_tuning_2-shap.py**:
+22. **public_holidays.py**: 
+22. **SARIMAX.py**: 
+22. **SARIMAX_30mins.py**: 
+22. **SARIMAX_GBR_Hybrid.py**: 
 23. **solar_irradiance_analysis.py**: 
 24. **statistical_data_transformation.py**: 
 25. **stats.py**: 

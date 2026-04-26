@@ -7,14 +7,12 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 
-
+# ensure reprodusibility
 torch.manual_seed(0)
 
-# log norm demand variable
-log_norm=False
+log_norm=False # log norm demand variable
 
-# changing window size 
-num_days = 98
+num_days = 98 # change window size 
 input_window = num_days*48
 output_window = 48
 
@@ -28,10 +26,6 @@ dropout_rate = 0.01
 weight_decay = 0
 mse_weight = 0.75
 mae_weight = 0.25
-optim_sgd = False
-
-if optim_sgd:
-    momentum = 0.9
 
 
 cwd = Path.cwd()
@@ -103,6 +97,7 @@ class LSTMmodel(nn.Module):
 
 num_tests = 100
 for repeat in range(num_days, num_days+num_tests):
+    # given long training times, display current repeat to monitor progress
     print(repeat-num_days)
     # define validation split
     val_start = repeat * 48 
@@ -122,14 +117,12 @@ for repeat in range(num_days, num_days+num_tests):
     model = LSTMmodel(input_size=x.shape[1], hidden_size=hidden_size, num_layers=num_layers, dropout=dropout_rate)
     criterion_mse = nn.MSELoss() # penalise large errors more heavily
     criterion_mae = nn.L1Loss()
-    if optim_sgd:
-        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
-    else: 
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     y_train_pred_list = []
     y_train_list = []
 
+    # split train data
     train_start = (val_start - input_window) 
     train_end = train_start + input_window
 
@@ -138,6 +131,7 @@ for repeat in range(num_days, num_days+num_tests):
     x_train_scaled = torch.tensor(x_train_scaled, dtype=torch.float32).unsqueeze(0)
     y_train_scaled = torch.tensor(y_train_scaled, dtype=torch.float32).view(1, -1)
 
+    #train model
     model.train()
     for e in range(epochs):
         output = model(x_train_scaled) 
@@ -147,10 +141,11 @@ for repeat in range(num_days, num_days+num_tests):
         optimizer.zero_grad() # reset gradients
         loss.backward() # computes loss gradients
         optimizer.step() # updates weights from gradients * lr
-
+    # get training predictions
     model.eval()
     with torch.no_grad():
         y_train_pred_scaled = model(x_train_scaled)
+    # transform training predictions to true scale
     y_train_pred = scaler_y.inverse_transform(y_train_pred_scaled.detach().cpu().numpy().T)
     y_train = scaler_y.inverse_transform(y_train_scaled.detach().cpu().numpy().T)
     if log_norm:
@@ -159,6 +154,7 @@ for repeat in range(num_days, num_days+num_tests):
     y_train_pred_list.extend(y_train_pred.tolist())
     y_train_list.extend(y_train.tolist())
 
+    # split validation data
     test_start = val_start + 48
     test_end = test_start + output_window
     x_test_scaled = x_scaled[test_start:test_end]
@@ -167,21 +163,26 @@ for repeat in range(num_days, num_days+num_tests):
     x_test_scaled = torch.tensor(x_test_scaled, dtype=torch.float32).unsqueeze(0)
     y_test_scaled = torch.tensor(y_test_scaled, dtype=torch.float32).view(1, -1)
 
+    # get model predictions
     model.eval()
     with torch.no_grad():
         y_pred_scaled = model(x_test_scaled)
-
+    # transform validation predictions to true scale
     y_pred = scaler_y.inverse_transform(y_pred_scaled.detach().cpu().numpy().T)
     if log_norm:
         y_pred = np.exp(y_pred)
+    
+    # combine true and predicted validation values
     day = df_datetime.iloc[test_end:test_end+output_window].copy().reset_index()      
     day['pred_power'] = y_pred
 
+    # extract peak magnitudes and times
     true_max = day['total_demand'].max()
     true_max_time= day['time'].iloc[day['total_demand'].idxmax()]
     pred_max = day['pred_power'].max()
     pred_max_time = day['time'].loc[day['pred_power'].idxmax()]
 
+    #calculate metrics
     train_mse = mean_squared_error(y_train_list, y_train_pred_list)
     train_mae = mean_absolute_error(y_train_list, y_train_pred_list)
     train_mape = mean_absolute_percentage_error(y_train_list,y_train_pred_list)*100
@@ -190,11 +191,11 @@ for repeat in range(num_days, num_days+num_tests):
     test_mae = mean_absolute_error([true_max], [pred_max])
     test_mape = mean_absolute_percentage_error([true_max], [pred_max])*100
 
-    # record results for each test
+    # record results for each dat
     results.loc[len(results)] = [day['date'].iloc[0], true_max, true_max_time, pred_max, pred_max_time, train_mse, train_mae, train_mape, test_mse, test_mae, test_mape]
 
 
-# display average results
+# display average results over all windows
 print('Log norm demand: ', log_norm)
 print('Number of days in sliding window: ', num_days)
 print('Hidden size: ', hidden_size)
@@ -208,33 +209,3 @@ print('Avg train MAE: ', results['Train MAE'].mean())
 print('Avg test MAE: ', results['Test MAE'].mean())
 
 
-
-
-
-"""
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-sns.lineplot(data=results, x='date', y='true_peak', label='Actual')
-sns.lineplot(data=results, x='date', y='pred_peak', label='Predicted')
-plt.legend()
-plt.show()
-plt.close()
-
-fig, axs = plt.subplots(3,1, figsize=(8, 10), layout='constrained')
-sns.lineplot(data=results, x='date', y='Train MSE', label='Train', color='blue', ax=axs[0])
-sns.lineplot(data=results, x='date', y='Test MSE', label='Test',  color='orange', ax=axs[0])
-sns.lineplot(data=results, x='date', y='Train MAE', label='Train',  color='blue', ax=axs[1])
-sns.lineplot(data=results, x='date', y='Test MAE', label='Test',  color='orange', ax=axs[1])
-sns.lineplot(data=results, x='date', y='Train MAPE', label='Train',  color='blue', ax=axs[2])
-sns.lineplot(data=results, x='date', y='Test MAPE', label='Test',  color='orange', ax=axs[2])
-axs[0].set_title('MSE')
-axs[1].set_title('MAE')
-axs[2].set_title('MAPE')
-handles, labels = axs[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc='upper right')
-axs[0].get_legend().remove() 
-axs[1].get_legend().remove() 
-axs[2].get_legend().remove()
-plt.show()
-plt.close()"""

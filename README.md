@@ -33,30 +33,27 @@ All coding has been carried out in Python. Required modules are:
 Descriptions of all Python scripts are as follows:
 1. **../data_wrangling.py**: inside root directory, used to extract datasets provided for the course from GitHub
 2. **../data/additional_data/data_cleaning.py**: inside data folder, used to format and clean additional data
-3. **SARIMAX.py**: 
-4. **SARIMAX_30mins.py**: 
-5. **SARIMAX_GBR_hybrid.py**: 
-6. **aemo_forecast.py**: extract last AEMO electricity forecasts from the previous day
-7. **colour_dict.py**: dictionaries for consistent figure colours and axis labels
-8. **data_import_export.py**: 
-9. **data_manipulation.py**: 
-10. **eda.py**: produce visualisations for exploratory data analysis
-11. **eda_30min.py**: produce visualisations for exploratory data analysis#
-12. **final_test_lstm.py**: produce LSTM test predictions
-13. **final_test_lstm_analysis.py**: visualise test prediction performance for models
-14. **load_arima.py**: 
-15. **lstm_best_models.py**: used in the final stage of initial hyperparameter tuning to compare input variable formats for current best models (Appendix Table C15)
-16. **lstm functions.py**: refactored LSTM code providing functions used after initial hyperparameter tuning
-17. **lstm functions_multi_seq.py**: used after testing, given the discovered overfitting, to investigate if passing multisequences to model reduced overfitting
-18. **lstm functions_same_day_incl.py**: used in the final stage of initial hyperparameter tuning to compare the use of same-day input data for predictions (Appendix Table C15)
-19. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning (Appendix Tables C6 through C13)
-20. **lstm_hyperparam_tuning_2.py**: LSTM tuning after SHAP insights(Appendix Table C16)
-21. **lstm_hyperparam_tuning_2-shap.py**: produce SHAP visualisation for training and testings with different feature combinations
-23. **solar_irradiance_analysis.py**: 
-24. **statistical_data_transformation.py**: 
-25. **SARIMAX/final_plots.py**: Produces the final plots from the SARIMAX simulations
-26. **SARIMAX/fitting.py** Runs the AutoARIMA procedure to determine the optimised parameters for the SARIMA/X models
-27. **SARIMAX/fitting_local.py** Contains the runtime for ARIMA models potentially with a list of parameters to run for assessing models further
-28. **SARIMAX/sliding_window.py**: Python code to produce the forecast data for the requested ARIMA model, can also produce the 30min intervals or just the daily maximum
-29. **SARIMA/window_testing.py**: code to test the effect of changing the window size. 
-30. **Ensemble_files/Ensemble_model.py**: implementation of ensemble models
+3. **aemo_forecast.py**: extract last AEMO electricity forecasts from the previous day
+4. **colour_dict.py**: dictionaries for consistent figure colours and axis labels
+5. **data_import_export.py**: 
+6. **data_manipulation.py**: 
+7. **eda.py**: produce visualisations for exploratory data analysis
+8. **eda_30min.py**: produce visualisations for exploratory data analysis#
+9. **final_test_lstm.py**: produce LSTM test predictions
+10. **final_test_lstm_analysis.py**: visualise test prediction performance for models
+11. **load_arima.py**: 
+12. **lstm_best_models.py**: used in the final stage of initial hyperparameter tuning to compare input variable formats for current best models (Appendix Table C15)
+13. **lstm functions.py**: refactored LSTM code providing functions used after initial hyperparameter tuning
+14. **lstm functions_multi_seq.py**: used after testing, given the discovered overfitting, to investigate if passing multisequences to model reduced overfitting
+15. **lstm functions_same_day_incl.py**: used in the final stage of initial hyperparameter tuning to compare the use of same-day input data for predictions (Appendix Table C15)
+16. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning (Appendix Tables C6 through C13)
+17. **lstm_hyperparam_tuning_2.py**: LSTM tuning after SHAP insights(Appendix Table C16)
+18. **lstm_hyperparam_tuning_2-shap.py**: produce SHAP visualisation for training and testings with different feature combinations
+19. **solar_irradiance_analysis.py**: 
+20. **statistical_data_transformation.py**: 
+21. **SARIMAX/final_plots.py**: Produces the final plots from the SARIMAX simulations
+22. **SARIMAX/fitting.py** Runs the AutoARIMA procedure to determine the optimised parameters for the SARIMA/X models
+23. **SARIMAX/fitting_local.py** Contains the runtime for ARIMA models potentially with a list of parameters to run for assessing models further
+24. **SARIMAX/sliding_window.py**: Python code to produce the forecast data for the requested ARIMA model, can also produce the 30min intervals or just the daily maximum
+25. **SARIMA/window_testing.py**: code to test the effect of changing the window size. 
+26. **Ensemble_files/Ensemble_model.py**: implementation of ensemble models

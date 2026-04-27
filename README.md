@@ -11,7 +11,7 @@
 ## Repo Structure
 1. **data**: contains pre- and post- processed datasets, and initial processing script for additional found data
 2. **figures**: all figures produced for exploratory data analysis
-3. **python**: contains pre- and post- processed datasets
+3. **python**: contains scripts used in this project, alongside predictions inputted to and outputted from the ensemble
 4. **Results**: contains testing visualisations for all mocels
 
 

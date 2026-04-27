@@ -11,7 +11,7 @@
 ## Repo Structure
 1. **data**: contains pre- and post- processed datasets, and initial processing script for additional found data
 2. **figures**: all figures produced for exploratory data analysis
-3. **python**: contains pre- and post- processed datasets
+3. **python**: contains scripts used in this project, alongside predictions inputted to and outputted from the ensemble
 4. **Results**: contains testing visualisations for all mocels
 
 
@@ -52,8 +52,7 @@ Descriptions of all Python scripts are as follows:
 18. **lstm functions_same_day_incl.py**: used in the final stage of initial hyperparameter tuning to compare the use of same-day input data for predictions (Appendix Table C15)
 19. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning (Appendix Tables C6 through C13)
 20. **lstm_hyperparam_tuning_2.py**: LSTM tuning after SHAP insights(Appendix Table C16)
-21. **lstm_hyperparam_tuning_2-shap.py**:
-22. **public_holidays.py**: 
+21. **lstm_hyperparam_tuning_2-shap.py**: produce SHAP visualisation for training and testings with different feature combinations
 23. **solar_irradiance_analysis.py**: 
 24. **statistical_data_transformation.py**: 
 25. **SARIMAX/final_plots.py**: Produces the final plots from the SARIMAX simulations

@@ -372,7 +372,7 @@ def run_auto_fit(data, root_folder, cores=None):
     df = pd.concat([df.drop(columns="coefs"), coef_df], axis=1)
 
     try:
-        df.to_csv(root_folder/ "python"/ "SARIMAX" / f"analysis_results_with_no_scaling_{datetime.date.today()}_super_high.csv", index=False)
+        df.to_csv(root_folder / f"analysis_results_with_no_scaling_{datetime.date.today()}_super_high.csv", index=False)
     except Exception as e:
         print(e)
         df.to_csv(r"C:\Temp\file.csv", index=False)
@@ -415,7 +415,7 @@ def box_cox_picture(data, start, timedelta, root_folder):
     ax[1].lines[1].set_linewidth(2)
     ax[1].set_title(f"Total Demand (Testing Data, Transformed Box-Cox ($\\lambda = {bcl:.3f}$))")
 
-    plt.savefig(root_folder / "figures" / "qq_plot_masked_bc_transform_together.png")
+    plt.savefig(root_folder / "qq_plot_masked_bc_transform_together.png")
 
     # print some stats which might be useful.
     print(skew(data_to_plot), skew(data_to_plot_auto))
@@ -435,6 +435,13 @@ if __name__=="__main__":
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
+    plt_folder = root_folder /  "figures"
+    save_folder = root_folder / "python" / "SARIMAX"
+
+    plt_folder.mkdir(parents=True, exist_ok=True)
+    save_folder.mkdir(parents=True, exist_ok=True)
+
+
     data = get_data(data_folder)
 
     #reduce peaks in capacity as it stabilise the solver.
@@ -442,11 +449,11 @@ if __name__=="__main__":
 
     if bc_pics:
        start = datetime.datetime(2018, 1, 1)
-       box_cox_picture(data, start, datetime.timedelta(days=365), root_folder)
+       box_cox_picture(data, start, datetime.timedelta(days=365), plt_folder)
 
 
     if sweep_var:
-        run_auto_fit(data, root_folder, cores=20)
+        run_auto_fit(data, plt_folder, cores=20)
 
 
 

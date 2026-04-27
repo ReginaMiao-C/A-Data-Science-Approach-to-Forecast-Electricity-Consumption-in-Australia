@@ -220,6 +220,7 @@ def main():
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
     plt_folder = root_folder / "figures"
+    plt_folder.mkdir(parents=True, exist_ok=True)
 
     # need the data again for the plotting of the coefficients (for the mean values)
     data = get_data(data_folder)

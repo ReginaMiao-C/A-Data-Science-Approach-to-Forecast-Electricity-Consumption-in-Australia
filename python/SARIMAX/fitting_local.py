@@ -176,7 +176,8 @@ if __name__=="__main__":
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
     save_location = root_folder/ "python"/"SARIMAX" / "data"
-    save_location = Path(r"C:/Temp")
+    save_location.mkdir(parents=True, exist_ok=True)
+
     data = get_data(data_folder)
     # reduce peaks in capacity, seems to make it run faster.
     data["pv_capacity"] = data["pv_capacity"] / 1000

@@ -101,15 +101,14 @@ if __name__=="__main__":
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
     save_folder = root_folder / "python" / "SARIMAX"
-
-    save_folder = Path(r"C:\Temp")
+    save_folder.mkdir(parents=True, exist_ok=True)
 
     data = get_data(data_folder)
     data["pv_capacity"] = data["pv_capacity"]/1000
 
-    using_exog = True
+    using_exog = False
     # if the full days of data are wanted, i.e. every 30min data snap:
-    full_days = True
+    full_days = False
 
     # leading name distinguishes daily max from all data.
     if full_days:

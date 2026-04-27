@@ -134,8 +134,8 @@ if __name__=="__main__":
     cwd = Path.cwd()
     root_folder = cwd.parent.parent
     data_folder = root_folder / "data"
-    #save_location = root_folder/ "python"/ "SARIMAX" / "data"
-    save_location = Path(r"C:\Temp")
+    save_location = root_folder/ "python"/ "SARIMAX" / "data"
+    save_location.mkdir(parents=True, exist_ok=True)
 
     data = get_data(data_folder)
     # reduce by 1000 as it appears to help stability

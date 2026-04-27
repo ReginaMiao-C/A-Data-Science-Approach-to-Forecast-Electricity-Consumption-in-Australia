@@ -26,6 +26,7 @@ All coding has been carried out in Python. Required modules are:
 - statsforecast
 - coreforecast
 - scipy
+- shap
 
 ### TODO: add ensemble folder - remove ensemble_final
 ## Scripts

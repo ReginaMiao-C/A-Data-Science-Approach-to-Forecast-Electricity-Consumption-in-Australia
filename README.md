@@ -31,8 +31,8 @@ All coding has been carried out in Python. Required modules are:
 ### TODO: add ensemble folder - remove ensemble_final
 ## Scripts
 Descriptions of all Python scripts are as follows:
-1. **data_wrangling.py**: inside root directory, used to extract datasets provided for the course from GitHub
-2. **data_cleaning.py**: inside data folder, used to format and clean additional data
+1. **../data_wrangling.py**: inside root directory, used to extract datasets provided for the course from GitHub
+2. **../data/additional_data/data_cleaning.py**: inside data folder, used to format and clean additional data
 3. **SARIMAX.py**: 
 4. **SARIMAX_30mins.py**: 
 5. **SARIMAX_GBR_hybrid.py**: 
@@ -59,4 +59,4 @@ Descriptions of all Python scripts are as follows:
 27. **SARIMAX/fitting_local.py** Contains the runtime for ARIMA models potentially with a list of parameters to run for assessing models further
 28. **SARIMAX/sliding_window.py**: Python code to produce the forecast data for the requested ARIMA model, can also produce the 30min intervals or just the daily maximuma
 29. **SARIMA/window_testing.py**: code to test the effect of changing the window size. 
-
+30. **Ensemble_files/Ensemble_model.py**: implementation of ensemble models

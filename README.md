@@ -48,11 +48,9 @@ Descriptions of all Python scripts are as follows:
 15. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning (Appendix Tables C6 through C13)
 16. **lstm_hyperparam_tuning_2.py**: LSTM tuning after SHAP insights(Appendix Table C16)
 17. **lstm_hyperparam_tuning_2-shap.py**: produce SHAP visualisation for training and testings with different feature combinations
-18. **solar_irradiance_analysis.py**: 
-19. **statistical_data_transformation.py**: 
-20. **SARIMAX/final_plots.py**: Produces the final plots from the SARIMAX simulations
-21. **SARIMAX/fitting.py** Runs the AutoARIMA procedure to determine the optimised parameters for the SARIMA/X models
-22. **SARIMAX/fitting_local.py** Contains the runtime for ARIMA models potentially with a list of parameters to run for assessing models further
-23. **SARIMAX/sliding_window.py**: Python code to produce the forecast data for the requested ARIMA model, can also produce the 30min intervals or just the daily maximum
-24. **SARIMA/window_testing.py**: code to test the effect of changing the window size. 
-25. **Ensemble_files/Ensemble_model.py**: implementation of ensemble models
+18. **SARIMAX/final_plots.py**: Produces the final plots from the SARIMAX simulations
+19. **SARIMAX/fitting.py** Runs the AutoARIMA procedure to determine the optimised parameters for the SARIMA/X models
+20. **SARIMAX/fitting_local.py** Contains the runtime for ARIMA models potentially with a list of parameters to run for assessing models further
+22. **SARIMAX/sliding_window.py**: Python code to produce the forecast data for the requested ARIMA model, can also produce the 30min intervals or just the daily maximum
+23. **SARIMA/window_testing.py**: code to test the effect of changing the window size. 
+24. **Ensemble_files/Ensemble_model.py**: implementation of ensemble models

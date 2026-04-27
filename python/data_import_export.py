@@ -1,12 +1,7 @@
 """
 Python script to handle importing, cleaning and data export.
 """
-import pandas as pd
-import numpy as np
 from pathlib import Path
-from scipy.interpolate import griddata
-
-
 import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata

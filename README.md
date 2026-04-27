@@ -1,5 +1,5 @@
 # Data Science Project: Group B
-*To what extent does incorporating temperature, rainfall, solar irradiation, and PV uptake affect the performance of machine learning models for short-term predictions of daily peak electricity demand in NSW?*
+*To what extent does incorporating temperature, rainfall, solar irradiation, and PV instllations affect the performance of machine learning models for short-term predictions of daily peak electricity demand in NSW?*
 
 ### Members
 - Jingwen Miao (z5630753)

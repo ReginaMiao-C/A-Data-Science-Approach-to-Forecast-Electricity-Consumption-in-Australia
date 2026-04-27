@@ -41,14 +41,13 @@ Descriptions of all Python scripts are as follows:
 8. **data_import_export.py**: 
 9. **data_manipulation.py**: 
 10. **eda.py**: produce visualisations for exploratory data analysis
-11. **eda_30min.py**: produce visualisations for exploratory data analysis
-12. **ensemble_final.py**:
-13. **final_test_lstm.py**: produce LSTM test predictions
-14. **final_test_lstm_analysis.py**: visualise test prediction performance for models
-15. **load_arima.py**: 
+11. **eda_30min.py**: produce visualisations for exploratory data analysis#
+12. **final_test_lstm.py**: produce LSTM test predictions
+13. **final_test_lstm_analysis.py**: visualise test prediction performance for models
+14. **load_arima.py**: 
 15. **lstm_best_models.py**: used in the final stage of initial hyperparameter tuning to compare input variable formats for current best models (Appendix Table C15)
-18. **lstm functions.py**: refactored LSTM code providing functions used after initial hyperparameter tuning
-18. **lstm functions_multi_seq.py**: used after testing, given the discovered overfitting, to investigate if passing multisequences to model reduced overfitting
+16. **lstm functions.py**: refactored LSTM code providing functions used after initial hyperparameter tuning
+17. **lstm functions_multi_seq.py**: used after testing, given the discovered overfitting, to investigate if passing multisequences to model reduced overfitting
 18. **lstm functions_same_day_incl.py**: used in the final stage of initial hyperparameter tuning to compare the use of same-day input data for predictions (Appendix Table C15)
 19. **lstm_hyperparam_tuning.py**: first round of LSTM hyperparameter tuning (Appendix Tables C6 through C13)
 20. **lstm_hyperparam_tuning_2.py**: LSTM tuning after SHAP insights(Appendix Table C16)
